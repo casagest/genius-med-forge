@@ -29,7 +29,42 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { event, data } = await req.json();
+    console.log('🔍 Received request body:', JSON.stringify(await req.clone().json(), null, 2));
+    const requestBody = await req.json();
+    console.log('📋 Processing request:', requestBody);
+
+    // Handle both old and new formats
+    const { event, data, patientData, analysisType } = requestBody;
+    
+    // If new format with event/data
+    if (event && data) {
+      console.log('📋 New format detected:', event);
+      const eventToProcess = event;
+      const dataToProcess = data;
+      
+      if (eventToProcess === 'get_procedure_recommendations') {
+        const recommendations = await generateMedicalRecommendations(
+          dataToProcess.patientData || dataToProcess,
+          dataToProcess.analysisType || 'comprehensive'
+        );
+        
+        return new Response(JSON.stringify(recommendations), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+    
+    // If old format with direct patientData
+    if (patientData) {
+      console.log('📋 Legacy format detected');
+      const recommendations = await generateMedicalRecommendations(patientData, analysisType || 'comprehensive');
+      
+      return new Response(JSON.stringify(recommendations), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { event: eventType, data: eventData } = requestBody;
 
     switch (event) {
       case 'procedure_status_update': {
