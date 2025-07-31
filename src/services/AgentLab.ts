@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { MedicProcedureUpdatePayload, AgentEvent } from '../types/medical-events';
 import { supabase } from '@/integrations/supabase/client';
+import { inventoryForecastService } from './InventoryForecastService';
 
 // Advanced Lab Machine Management
 interface LabMachine {
@@ -154,6 +155,26 @@ export class AgentLab {
   // 🧠 FEATURE 1: PREDICTIVE RESOURCE OPTIMIZATION
   private async startPredictiveOptimization(): Promise<void> {
     console.log('🔮 Starting predictive optimization...');
+    
+    // Run daily forecast immediately
+    await inventoryForecastService.runDailyForecast();
+    
+    // Schedule daily forecasts at 6 AM
+    const now = new Date();
+    const nextRun = new Date();
+    nextRun.setHours(6, 0, 0, 0);
+    if (nextRun <= now) {
+      nextRun.setDate(nextRun.getDate() + 1);
+    }
+    
+    const timeUntilNextRun = nextRun.getTime() - now.getTime();
+    setTimeout(() => {
+      inventoryForecastService.runDailyForecast();
+      // Then run every 24 hours
+      setInterval(() => {
+        inventoryForecastService.runDailyForecast();
+      }, 24 * 60 * 60 * 1000);
+    }, timeUntilNextRun);
     
     // Run optimization every 30 minutes
     setInterval(() => {
