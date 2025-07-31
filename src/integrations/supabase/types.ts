@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      active_procedures: {
+        Row: {
+          actual_duration_minutes: number | null
+          appointment_id: string
+          case_id: string
+          completed_at: string | null
+          complications: Json | null
+          created_at: string
+          estimated_duration_minutes: number | null
+          id: string
+          materials_used: Json | null
+          notes: string | null
+          patient_id: string | null
+          procedure_type: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_duration_minutes?: number | null
+          appointment_id: string
+          case_id: string
+          completed_at?: string | null
+          complications?: Json | null
+          created_at?: string
+          estimated_duration_minutes?: number | null
+          id?: string
+          materials_used?: Json | null
+          notes?: string | null
+          patient_id?: string | null
+          procedure_type: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_duration_minutes?: number | null
+          appointment_id?: string
+          case_id?: string
+          completed_at?: string | null
+          complications?: Json | null
+          created_at?: string
+          estimated_duration_minutes?: number | null
+          id?: string
+          materials_used?: Json | null
+          notes?: string | null
+          patient_id?: string | null
+          procedure_type?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       analysis_reports: {
         Row: {
           analysis_data: Json | null
@@ -159,6 +213,45 @@ export type Database = {
           digital_twin_id?: string | null
           id?: string
           patient_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      procedure_events: {
+        Row: {
+          appointment_id: string
+          case_id: string
+          created_at: string
+          event_data: Json
+          event_type: string
+          id: string
+          patient_id: string | null
+          processed: boolean | null
+          timestamp: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          case_id: string
+          created_at?: string
+          event_data?: Json
+          event_type: string
+          id?: string
+          patient_id?: string | null
+          processed?: boolean | null
+          timestamp?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          case_id?: string
+          created_at?: string
+          event_data?: Json
+          event_type?: string
+          id?: string
+          patient_id?: string | null
+          processed?: boolean | null
+          timestamp?: string
           updated_at?: string
         }
         Relationships: []
