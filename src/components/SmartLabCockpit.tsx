@@ -89,6 +89,25 @@ interface ForecastAnalytics {
   recommendations: string[];
 }
 
+interface ProactiveAlert {
+  type: 'low_stock' | 'machine_bottleneck' | 'production_delay' | 'critical_shortage' | 'efficiency_drop';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  title: string;
+  message: string;
+  payload: Record<string, any>;
+  timestamp: string;
+  actionable: boolean;
+  recommended_actions?: string[];
+}
+
+interface SystemMetrics {
+  pending_jobs_count: number;
+  low_stock_materials: number;
+  machine_utilization: number;
+  production_efficiency: number;
+  critical_alerts: number;
+}
+
 export function SmartLabCockpit() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [productionJobs, setProductionJobs] = useState<ProductionJob[]>([]);
@@ -96,8 +115,11 @@ export function SmartLabCockpit() {
   const [reorderSuggestions, setReorderSuggestions] = useState<AutoReorderSuggestion[]>([]);
   const [forecastResults, setForecastResults] = useState<ForecastResult[]>([]);
   const [forecastAnalytics, setForecastAnalytics] = useState<ForecastAnalytics | null>(null);
+  const [proactiveAlerts, setProactiveAlerts] = useState<ProactiveAlert[]>([]);
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isForecasting, setIsForecasting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
 
   const [machineStatus] = useState({
@@ -421,6 +443,51 @@ export function SmartLabCockpit() {
     }
   };
 
+  const runReactiveAnalysis = async () => {
+    setIsAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('reactive-analysis', {
+        body: { 
+          event: 'run_analysis'
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data?.alerts) {
+        setProactiveAlerts(data.alerts);
+        
+        // Show critical alerts as toasts
+        const criticalAlerts = data.alerts.filter((alert: ProactiveAlert) => alert.severity === 'critical');
+        criticalAlerts.forEach((alert: ProactiveAlert) => {
+          toast({
+            title: alert.title,
+            description: alert.message,
+            variant: "destructive",
+          });
+        });
+      }
+      
+      if (data?.metrics) {
+        setSystemMetrics(data.metrics);
+      }
+      
+      toast({
+        title: "Analysis Complete",
+        description: `Found ${data?.alerts?.length || 0} alerts. System monitoring active.`,
+      });
+    } catch (error) {
+      console.error('Error running reactive analysis:', error);
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to run reactive analysis.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const getStockStatusColor = (current: number, minimum: number) => {
     const ratio = current / minimum;
     if (ratio <= 1) return 'text-red-600';
@@ -437,6 +504,15 @@ export function SmartLabCockpit() {
     }
   };
 
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return 'text-red-600 bg-red-50 border-red-200';
+      case 'high': return 'text-orange-600 bg-orange-50 border-orange-200';
+      case 'medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      default: return 'text-blue-600 bg-blue-50 border-blue-200';
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -446,6 +522,19 @@ export function SmartLabCockpit() {
           Smart Lab Cockpit
         </h1>
         <div className="flex gap-2">
+          <Button 
+            onClick={runReactiveAnalysis}
+            disabled={isAnalyzing}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            {isAnalyzing ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Activity className="h-4 w-4" />
+            )}
+            {isAnalyzing ? 'Analyzing...' : 'Live Monitor'}
+          </Button>
           <Button 
             onClick={optimizeProductionSchedule}
             disabled={isOptimizing}
@@ -458,16 +547,13 @@ export function SmartLabCockpit() {
             )}
             {isOptimizing ? 'Optimizing...' : 'AI Optimize'}
           </Button>
-          <Button variant="outline">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Analytics
-          </Button>
         </div>
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="monitor">Live Monitor</TabsTrigger>
           <TabsTrigger value="inventory">Smart Inventory</TabsTrigger>
           <TabsTrigger value="production">Production Queue</TabsTrigger>
           <TabsTrigger value="forecast">AI Forecast</TabsTrigger>
@@ -553,7 +639,196 @@ export function SmartLabCockpit() {
           </div>
         </TabsContent>
 
-        <TabsContent value="inventory" className="mt-6">
+        <TabsContent value="monitor" className="mt-6">
+          <div className="space-y-6">
+            {/* System Metrics Dashboard */}
+            {systemMetrics && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Real-Time System Metrics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="text-center p-3 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">{systemMetrics.pending_jobs_count}</div>
+                      <div className="text-sm text-muted-foreground">Pending Jobs</div>
+                    </div>
+                    <div className="text-center p-3 bg-red-50 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600">{systemMetrics.low_stock_materials}</div>
+                      <div className="text-sm text-muted-foreground">Low Stock Items</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">{systemMetrics.machine_utilization}%</div>
+                      <div className="text-sm text-muted-foreground">Machine Utilization</div>
+                    </div>
+                    <div className="text-center p-3 bg-purple-50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">{systemMetrics.production_efficiency}%</div>
+                      <div className="text-sm text-muted-foreground">Production Efficiency</div>
+                    </div>
+                    <div className="text-center p-3 bg-orange-50 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600">{systemMetrics.critical_alerts}</div>
+                      <div className="text-sm text-muted-foreground">Critical Alerts</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Live Alerts */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" />
+                    Live Alert System
+                  </span>
+                  <Button 
+                    onClick={runReactiveAnalysis}
+                    disabled={isAnalyzing}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {isAnalyzing ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Refresh
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {proactiveAlerts.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-500" />
+                      <h3 className="text-lg font-medium">All systems operational</h3>
+                      <p>No active alerts detected</p>
+                    </div>
+                  ) : (
+                    proactiveAlerts.map((alert, index) => (
+                      <div key={index} className={`border rounded-lg p-4 ${getSeverityColor(alert.severity)}`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-semibold">{alert.title}</h3>
+                            <p className="text-sm">{alert.message}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Badge variant={getUrgencyColor(alert.severity)}>
+                              {alert.severity.toUpperCase()}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {alert.type.replace('_', ' ').toUpperCase()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Alert Payload Details */}
+                        <div className="mb-3 p-2 bg-white/50 rounded text-xs">
+                          <strong>Details:</strong> {JSON.stringify(alert.payload, null, 2).slice(0, 200)}...
+                        </div>
+
+                        {/* Recommended Actions */}
+                        {alert.recommended_actions && alert.recommended_actions.length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="font-medium text-sm">Recommended Actions:</h4>
+                            <div className="space-y-1">
+                              {alert.recommended_actions.map((action, actionIndex) => (
+                                <div key={actionIndex} className="flex items-center gap-2 text-sm">
+                                  <Activity className="h-3 w-3" />
+                                  <span>{action}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        {alert.actionable && (
+                          <div className="flex gap-2 mt-3">
+                            <Button size="sm" variant="outline">
+                              Take Action
+                            </Button>
+                            <Button size="sm" variant="ghost">
+                              Acknowledge
+                            </Button>
+                            <Button size="sm" variant="ghost">
+                              Dismiss
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Monitoring Controls */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Monitoring Configuration</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Alert Thresholds</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span>Machine Bottleneck:</span>
+                        <span className="font-medium">5+ pending jobs</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Low Stock Alert:</span>
+                        <span className="font-medium">Below minimum threshold</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Production Delay:</span>
+                        <span className="font-medium">1+ days overdue</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Monitoring Status</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Real-time updates: Active</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Alerting system: Online</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Forecast engine: Ready</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Quick Actions</h4>
+                    <div className="space-y-1">
+                      <Button size="sm" variant="outline" className="w-full">
+                        Configure Thresholds
+                      </Button>
+                      <Button size="sm" variant="outline" className="w-full">
+                        Export Alert History
+                      </Button>
+                      <Button size="sm" variant="outline" className="w-full">
+                        Test Alert System
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {materials.map(material => (
               <Card key={material.id}>
