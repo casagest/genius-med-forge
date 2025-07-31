@@ -33,13 +33,24 @@ export function MedicalAIInterface() {
 
     setIsAnalyzing(true);
     try {
+      console.log('🔍 Calling agent-medic with data:', {
+        patientData: {
+          ...patientData,
+          lab_values: patientData.lab_values ? JSON.parse(patientData.lab_values) : {}
+        },
+        analysisType
+      });
+
       const { data, error } = await supabase.functions.invoke('agent-medic', {
         body: {
-          patientData: {
-            ...patientData,
-            lab_values: patientData.lab_values ? JSON.parse(patientData.lab_values) : {}
-          },
-          analysisType
+          event: 'get_procedure_recommendations',
+          data: {
+            patientData: {
+              ...patientData,
+              lab_values: patientData.lab_values ? JSON.parse(patientData.lab_values) : {}
+            },
+            analysisType
+          }
         }
       });
 

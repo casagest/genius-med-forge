@@ -122,6 +122,15 @@ export function useRealtimeAgents(role: ClientRole = 'CEO') {
           }
           break;
 
+        case 'forecast_error':
+          console.error('Forecast error:', message.message);
+          toast({
+            title: "Forecast Error", 
+            description: message.message || "Inventory forecast failed",
+            variant: "destructive"
+          });
+          break;
+
         case 'error':
           console.error('WebSocket error:', message.message);
           toast({
