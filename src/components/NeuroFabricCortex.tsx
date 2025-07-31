@@ -11,12 +11,16 @@ interface LabJob {
   id: string;
   job_code: string;
   job_type: string;
-  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  status: string;
   priority: number;
   machine_assignment?: string;
   estimated_duration?: string;
-  started_at?: string;
-  patients: { patient_code: string; profiles: { full_name: string } };
+  actual_duration?: string;
+  material_requirements?: any;
+  patient_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  patients?: { patient_code: string };
 }
 
 export function NeuroFabricCortex() {
@@ -40,7 +44,7 @@ export function NeuroFabricCortex() {
       }, (payload) => {
         if (payload.eventType === 'UPDATE') {
           setJobs(prev => prev.map(job => 
-            job.id === (payload.new as any).id ? { ...job, ...(payload.new as LabJob) } : job
+            job.id === payload.new.id ? { ...job, ...payload.new } : job
           ));
         }
       })
@@ -52,32 +56,15 @@ export function NeuroFabricCortex() {
   }, []);
 
   const fetchProductionQueue = async () => {
-    try {
-      const { data } = await (supabase as any)
-        .from('lab_production_queue')
-        .select(`
-          *,
-          patients (patient_code, profiles (full_name))
-        `)
-        .order('priority', { ascending: false });
-      
-      setJobs((data as LabJob[]) || []);
-    } catch (error) {
-      console.log('Table not found yet - using mock data');
-      // Mock data until database is set up
-      setJobs([
-        {
-          id: '1',
-          job_code: 'LAB-001',
-          job_type: 'Orthopedic Implant',
-          status: 'IN_PROGRESS',
-          priority: 5,
-          machine_assignment: 'CAD_CAM_1',
-          estimated_duration: '2h 30m',
-          patients: { patient_code: 'P001', profiles: { full_name: 'John Doe' } }
-        }
-      ]);
-    }
+    const { data } = await supabase
+      .from('lab_production_queue')
+      .select(`
+        *,
+        patients (patient_code)
+      `)
+      .order('priority', { ascending: false });
+    
+    setJobs(data || []);
   };
 
   const updateJobStatus = async (jobId: string, newStatus: string, machine?: string) => {
@@ -139,7 +126,7 @@ export function NeuroFabricCortex() {
                   <div>
                     <h3 className="font-semibold">{job.job_code}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {job.patients?.profiles?.full_name} - {job.job_type}
+                      {job.patients?.patient_code} - {job.job_type}
                     </p>
                   </div>
                   <div className="flex gap-2">

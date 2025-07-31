@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface RiskReport {
   id: string;
   report_type: string;
-  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  risk_level: string;
   confidence_score: number;
   analysis_data: any;
   requires_action: boolean;
@@ -49,29 +49,13 @@ export function StrategicOpsPanel() {
   }, []);
 
   const fetchReports = async () => {
-    try {
-      const { data } = await (supabase as any)
-        .from('analysis_reports')
-        .select('*')
-        .order('generated_at', { ascending: false })
-        .limit(50);
-      
-      setReports((data as RiskReport[]) || []);
-    } catch (error) {
-      console.log('Table not found yet - using mock data');
-      // Mock data until database is set up
-      setReports([
-        {
-          id: '1',
-          report_type: 'Surgical Risk Assessment',
-          risk_level: 'HIGH',
-          confidence_score: 0.85,
-          analysis_data: {},
-          requires_action: true,
-          generated_at: new Date().toISOString()
-        }
-      ]);
-    }
+    const { data } = await supabase
+      .from('analysis_reports')
+      .select('*')
+      .order('generated_at', { ascending: false })
+      .limit(50);
+    
+    setReports(data || []);
   };
 
   const playVoiceAlert = (report: RiskReport) => {
