@@ -1,1 +1,43 @@
 project_id = "sosiozakhzrnapvxrtrb"
+
+[functions.realtime-agents]
+verify_jwt = false
+
+[functions.text-to-speech]
+verify_jwt = false
+
+[functions.voice-to-text]
+verify_jwt = false
+
+[functions.realtime-medical-ai]
+verify_jwt = false
+
+[functions.smart-scheduler]
+verify_jwt = false
+
+[functions.reactive-analysis]
+verify_jwt = false
+
+[functions.agent-ceo]
+verify_jwt = false
+
+[functions.agent-lab]
+verify_jwt = false
+
+[functions.agent-medic]
+verify_jwt = false
+
+[functions.enhanced-replay-critic]
+verify_jwt = false
+
+[functions.inventory-forecast]
+verify_jwt = false
+
+[functions.medical-procedure-handler]
+verify_jwt = false
+
+[functions.procurement-email]
+verify_jwt = false
+
+[functions.replay-critic]
+verify_jwt = false

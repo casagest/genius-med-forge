@@ -18,24 +18,42 @@ interface ConnectedClient {
 const connectedClients = new Map<string, ConnectedClient>();
 
 serve(async (req) => {
+  console.log("🚀 Realtime Agents function called");
+  console.log("Headers:", req.headers);
+  console.log("Method:", req.method);
+  console.log("URL:", req.url);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
+    console.log("📋 Handling CORS preflight");
     return new Response(null, { headers: corsHeaders });
   }
 
   // Handle WebSocket upgrade
   const upgrade = req.headers.get("upgrade") || "";
+  console.log("🔧 Upgrade header:", upgrade);
+  
   if (upgrade.toLowerCase() !== "websocket") {
+    console.log("❌ Not a WebSocket upgrade request");
     return new Response("Expected WebSocket connection", { 
       status: 400, 
       headers: corsHeaders 
     });
   }
 
+  console.log("🔌 Upgrading to WebSocket");
   const { socket, response } = Deno.upgradeWebSocket(req);
+  
+  // Initialize Supabase client
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  console.log("🗄️ Supabase URL:", supabaseUrl ? "✅ Found" : "❌ Missing");
+  console.log("🔑 Supabase Key:", supabaseKey ? "✅ Found" : "❌ Missing");
+  
   const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    supabaseUrl ?? '',
+    supabaseKey ?? ''
   );
 
   let clientId: string;
