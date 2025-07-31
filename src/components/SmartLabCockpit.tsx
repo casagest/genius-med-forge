@@ -271,31 +271,45 @@ export function SmartLabCockpit() {
   const optimizeProductionSchedule = async () => {
     setIsOptimizing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('agent-lab', {
-        body: {
-          event: 'optimize_schedule',
-          data: {
-            jobs: productionJobs,
-            materials: materials,
-            machine_status: machineStatus
-          }
+      const { data, error } = await supabase.functions.invoke('smart-scheduler', {
+        body: { 
+          event: 'optimize_schedule'
         }
       });
 
       if (error) throw error;
       
-      toast({
-        title: "Production Optimized",
-        description: "Schedule optimized for efficiency and material usage",
-      });
+      // Update production jobs with optimized order
+      if (data?.optimizedJobs) {
+        setProductionJobs(data.optimizedJobs);
+      }
       
-      fetchProductionJobs();
+      // Display optimization analytics
+      if (data?.analytics) {
+        const { analytics } = data;
+        toast({
+          title: "Schedule Optimized",
+          description: `Optimized ${analytics.totalJobs} jobs. ${analytics.highPriorityJobs} high-priority jobs identified.`,
+        });
+        
+        // Show recommendations if any
+        if (analytics.optimizationRecommendations?.length > 0) {
+          setTimeout(() => {
+            toast({
+              title: "Optimization Recommendations",
+              description: analytics.optimizationRecommendations[0],
+            });
+          }, 2000);
+        }
+      }
+      
+      await fetchProductionJobs();
     } catch (error) {
-      console.error('Error optimizing production:', error);
+      console.error('Error optimizing schedule:', error);
       toast({
         title: "Optimization Failed",
-        description: "Unable to optimize production schedule",
-        variant: "destructive"
+        description: "Failed to optimize production schedule.",
+        variant: "destructive",
       });
     } finally {
       setIsOptimizing(false);
