@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StrategicOpsPanel } from '@/components/StrategicOpsPanel';
 import { NeuroFabricCortex } from '@/components/NeuroFabricCortex';
 import { MedicCockpit } from '@/components/MedicCockpit';
+import { MedicalAIInterface } from '@/components/MedicalAIInterface';
 
 const Index = () => {
   return (
@@ -12,12 +13,17 @@ const Index = () => {
         </div>
       </div>
       
-      <Tabs defaultValue="strategic" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="strategic">StrategicOps Panel</TabsTrigger>
-          <TabsTrigger value="neurofabric">NeuroFabric Cortex</TabsTrigger>
-          <TabsTrigger value="cockpit">Medical Cockpit</TabsTrigger>
+      <Tabs defaultValue="ai" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="ai">🧠 AI Interface</TabsTrigger>
+          <TabsTrigger value="strategic">📊 StrategicOps</TabsTrigger>
+          <TabsTrigger value="neurofabric">🏭 NeuroFabric</TabsTrigger>
+          <TabsTrigger value="cockpit">⚕️ MedCockpit</TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="ai" className="mt-0">
+          <MedicalAIInterface />
+        </TabsContent>
         
         <TabsContent value="strategic" className="mt-0">
           <StrategicOpsPanel />
