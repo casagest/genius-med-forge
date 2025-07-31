@@ -3,13 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Brain, Activity, BarChart3, AlertTriangle } from 'lucide-react';
+import { Brain, Activity, BarChart3, AlertTriangle, User, CheckCircle } from 'lucide-react';
+import VoiceInterface from './VoiceInterface';
 
 export function MedicalAIInterface() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [isVoiceSpeaking, setIsVoiceSpeaking] = useState(false);
   const [patientData, setPatientData] = useState({
     patient_code: '',
     medical_history: '',
@@ -99,9 +102,23 @@ export function MedicalAIInterface() {
       <div className="flex items-center gap-2 mb-6">
         <Brain className="h-6 w-6 text-primary" />
         <h1 className="text-3xl font-bold">AI Medical Analysis Interface</h1>
+        {isVoiceSpeaking && (
+          <Badge variant="secondary" className="ml-2">
+            <Activity className="w-3 h-3 mr-1 animate-pulse" />
+            Voice Active
+          </Badge>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Tabs defaultValue="chat" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="chat">AI Analysis</TabsTrigger>
+          <TabsTrigger value="voice">Voice AI</TabsTrigger>
+          <TabsTrigger value="analysis">Dashboard</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="chat" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Panel */}
         <Card>
           <CardHeader>
@@ -191,8 +208,8 @@ export function MedicalAIInterface() {
           </CardContent>
         </Card>
 
-        {/* Results Panel */}
-        <Card>
+            {/* Results Panel */}
+            <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5" />
