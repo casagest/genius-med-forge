@@ -64,12 +64,40 @@ interface AutoReorderSuggestion {
   estimated_cost: number;
 }
 
+interface ForecastResult {
+  material_name: string;
+  current_stock: number;
+  predicted_usage: number;
+  predicted_shortage: number;
+  days_until_depletion: number;
+  confidence_level: number;
+  urgency_level: 'low' | 'medium' | 'high' | 'critical';
+  recommended_order_quantity: number;
+  estimated_cost: number;
+  lead_time_days: number;
+}
+
+interface ForecastAnalytics {
+  total_materials_analyzed: number;
+  materials_at_risk: number;
+  total_predicted_cost: number;
+  next_critical_shortage: {
+    material: string;
+    days: number;
+  } | null;
+  forecast_accuracy_score: number;
+  recommendations: string[];
+}
+
 export function SmartLabCockpit() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [productionJobs, setProductionJobs] = useState<ProductionJob[]>([]);
   const [analytics, setAnalytics] = useState<MaterialUsageAnalytics[]>([]);
   const [reorderSuggestions, setReorderSuggestions] = useState<AutoReorderSuggestion[]>([]);
+  const [forecastResults, setForecastResults] = useState<ForecastResult[]>([]);
+  const [forecastAnalytics, setForecastAnalytics] = useState<ForecastAnalytics | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isForecasting, setIsForecasting] = useState(false);
   const { toast } = useToast();
 
   const [machineStatus] = useState({
@@ -348,6 +376,51 @@ export function SmartLabCockpit() {
     }
   };
 
+  const runInventoryForecast = async () => {
+    setIsForecasting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('inventory-forecast', {
+        body: { 
+          event: 'run_forecast',
+          data: { daysAhead: 14 }
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data?.forecasts) {
+        setForecastResults(data.forecasts);
+      }
+      
+      if (data?.analytics) {
+        setForecastAnalytics(data.analytics);
+        toast({
+          title: "Forecast Complete",
+          description: `Analyzed ${data.analytics.total_materials_analyzed} materials. ${data.analytics.materials_at_risk} at risk.`,
+        });
+        
+        // Show critical recommendations
+        if (data.analytics.recommendations?.length > 0) {
+          setTimeout(() => {
+            toast({
+              title: "Forecast Recommendations",
+              description: data.analytics.recommendations[0],
+            });
+          }, 2000);
+        }
+      }
+    } catch (error) {
+      console.error('Error running forecast:', error);
+      toast({
+        title: "Forecast Failed",
+        description: "Failed to run inventory forecast.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsForecasting(false);
+    }
+  };
+
   const getStockStatusColor = (current: number, minimum: number) => {
     const ratio = current / minimum;
     if (ratio <= 1) return 'text-red-600';
@@ -393,10 +466,11 @@ export function SmartLabCockpit() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="inventory">Smart Inventory</TabsTrigger>
           <TabsTrigger value="production">Production Queue</TabsTrigger>
+          <TabsTrigger value="forecast">AI Forecast</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="reorder">Auto-Reorder</TabsTrigger>
         </TabsList>
@@ -593,6 +667,159 @@ export function SmartLabCockpit() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="forecast" className="mt-6">
+          <div className="space-y-6">
+            {/* Forecast Controls */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    AI-Powered Inventory Forecast
+                  </span>
+                  <Button 
+                    onClick={runInventoryForecast}
+                    disabled={isForecasting}
+                    className="flex items-center gap-2"
+                  >
+                    {isForecasting ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <BarChart3 className="h-4 w-4" />
+                    )}
+                    {isForecasting ? 'Analyzing...' : 'Run Forecast'}
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              {forecastAnalytics && (
+                <CardContent>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="text-center p-3 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">{forecastAnalytics.total_materials_analyzed}</div>
+                      <div className="text-sm text-muted-foreground">Materials Analyzed</div>
+                    </div>
+                    <div className="text-center p-3 bg-red-50 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600">{forecastAnalytics.materials_at_risk}</div>
+                      <div className="text-sm text-muted-foreground">At Risk</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">{forecastAnalytics.forecast_accuracy_score}%</div>
+                      <div className="text-sm text-muted-foreground">Forecast Accuracy</div>
+                    </div>
+                    <div className="text-center p-3 bg-purple-50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">${forecastAnalytics.total_predicted_cost.toFixed(0)}</div>
+                      <div className="text-sm text-muted-foreground">Predicted Cost</div>
+                    </div>
+                  </div>
+                  
+                  {forecastAnalytics.next_critical_shortage && (
+                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <h4 className="font-semibold text-red-800 mb-1">Next Critical Shortage</h4>
+                      <p className="text-red-600">
+                        {forecastAnalytics.next_critical_shortage.material} in {forecastAnalytics.next_critical_shortage.days} days
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
+
+            {/* Forecast Results */}
+            {forecastResults.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {forecastResults.map(forecast => (
+                  <Card key={forecast.material_name}>
+                    <CardHeader>
+                      <CardTitle className="text-base flex justify-between items-center">
+                        {forecast.material_name}
+                        <Badge variant={getUrgencyColor(forecast.urgency_level)}>
+                          {forecast.urgency_level.toUpperCase()}
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* Current vs Predicted */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Current Stock:</span>
+                            <div className="font-medium">{forecast.current_stock} units</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Predicted Usage:</span>
+                            <div className="font-medium">{forecast.predicted_usage} units</div>
+                          </div>
+                        </div>
+
+                        {/* Shortage Indicator */}
+                        {forecast.predicted_shortage > 0 && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4 text-red-500" />
+                              <span className="font-medium text-red-800">
+                                Predicted Shortage: {forecast.predicted_shortage} units
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Timeline */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Days Until Depletion:</span>
+                            <div className="font-medium text-orange-600">{forecast.days_until_depletion} days</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Lead Time:</span>
+                            <div className="font-medium">{forecast.lead_time_days} days</div>
+                          </div>
+                        </div>
+
+                        {/* Confidence & Recommendation */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Forecast Confidence</span>
+                            <span className="font-medium">{Math.round(forecast.confidence_level * 100)}%</span>
+                          </div>
+                          <Progress value={forecast.confidence_level * 100} className="h-2" />
+                        </div>
+
+                        {/* Recommended Action */}
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <h4 className="font-medium text-blue-800 mb-1">Recommended Order</h4>
+                          <div className="text-sm text-blue-600">
+                            <div>Quantity: {forecast.recommended_order_quantity} units</div>
+                            <div>Estimated Cost: ${forecast.estimated_cost.toFixed(2)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Recommendations */}
+            {forecastAnalytics?.recommendations && forecastAnalytics.recommendations.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>AI Recommendations</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {forecastAnalytics.recommendations.map((recommendation, index) => (
+                      <div key={index} className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg">
+                        <Activity className="h-4 w-4 text-blue-500 mt-0.5" />
+                        <span className="text-sm text-blue-700">{recommendation}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="analytics" className="mt-6">
