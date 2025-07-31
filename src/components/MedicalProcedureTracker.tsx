@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { medicRealtimeService } from '@/services/MedicRealtimeService';
 import type { BaseProcedureEvent, ConnectionStatus } from '@/services/MedicRealtimeService';
+import { agentMedic } from '@/services/AgentMedic';
+import { MedicProcedureUpdatePayload } from '@/types/medical-events';
 import { toast } from 'sonner';
 
 interface ActiveProcedure {
