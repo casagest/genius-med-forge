@@ -17,7 +17,6 @@ interface Message {
   timestamp: Date;
 }
 
-
 const VoiceInterface: React.FC<VoiceInterfaceProps> = ({ onSpeakingChange }) => {
   const { toast } = useToast();
   const [isConnected, setIsConnected] = useState(false);
