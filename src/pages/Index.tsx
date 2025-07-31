@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StrategicOpsPanel } from '@/components/StrategicOpsPanel';
-import { NeuroFabricCortex } from '@/components/NeuroFabricCortex';
+import { SmartLabCockpit } from '@/components/SmartLabCockpit';
 import { MedicCockpit } from '@/components/MedicCockpit';
 import { MedicalAIInterface } from '@/components/MedicalAIInterface';
 
@@ -17,7 +17,7 @@ const Index = () => {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="ai">🧠 AI Interface</TabsTrigger>
           <TabsTrigger value="strategic">📊 StrategicOps</TabsTrigger>
-          <TabsTrigger value="neurofabric">🏭 NeuroFabric</TabsTrigger>
+          <TabsTrigger value="smartlab">🏭 SmartLab</TabsTrigger>
           <TabsTrigger value="cockpit">⚕️ MedCockpit</TabsTrigger>
         </TabsList>
         
@@ -29,8 +29,8 @@ const Index = () => {
           <StrategicOpsPanel />
         </TabsContent>
         
-        <TabsContent value="neurofabric" className="mt-0">
-          <NeuroFabricCortex />
+        <TabsContent value="smartlab" className="mt-0">
+          <SmartLabCockpit />
         </TabsContent>
         
         <TabsContent value="cockpit" className="mt-0">

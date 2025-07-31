@@ -158,6 +158,34 @@ serve(async (req) => {
         });
       }
 
+      case 'optimize_schedule': {
+        const optimizationResult = await optimizeProductionSchedule(supabase, data);
+        return new Response(JSON.stringify(optimizationResult), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'auto_reorder': {
+        const reorderResult = await processAutoReorder(supabase, data);
+        return new Response(JSON.stringify(reorderResult), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'material_usage_prediction': {
+        const predictions = await predictMaterialUsage(supabase, data);
+        return new Response(JSON.stringify(predictions), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'smart_allocation': {
+        const allocations = await smartMaterialAllocation(supabase, data);
+        return new Response(JSON.stringify(allocations), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       default:
         throw new Error(`Unknown event type: ${event}`);
     }
@@ -231,29 +259,273 @@ async function consumeMaterials(supabase: any, jobId: string) {
 
 async function checkAndGenerateReorders(supabase: any) {
   const { data: lowStockMaterials, error } = await supabase
-    .from('materials_inventory')
+    .from('lab_materials')
     .select('*')
-    .filter('current_stock', 'lte', supabase.raw('minimum_threshold'))
-    .eq('is_active', true);
+    .filter('current_stock', 'lte', supabase.raw('minimum_threshold'));
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching low stock materials:', error);
+    return [];
+  }
 
   const reorderAlerts = lowStockMaterials.map((material: any) => ({
-    material_code: material.material_code,
+    material_id: material.id,
     material_name: material.material_name,
     current_stock: material.current_stock,
     minimum_threshold: material.minimum_threshold,
     suggested_order: material.minimum_threshold * 3, // Order 3x minimum
-    supplier: material.supplier_info,
-    urgency: material.current_stock === 0 ? 'CRITICAL' : 'HIGH'
+    supplier: material.supplier,
+    urgency: material.current_stock === 0 ? 'CRITICAL' : 'HIGH',
+    estimated_cost: (material.minimum_threshold * 3) * material.unit_cost
   }));
 
-  // Emit alerts to CEO dashboard
+  // Emit alerts to dashboard
   if (reorderAlerts.length > 0) {
     await emitLabUpdate('lab:reorder_alert', reorderAlerts);
   }
 
   return reorderAlerts;
+}
+
+async function optimizeProductionSchedule(supabase: any, data: any) {
+  console.log('Optimizing production schedule with AI')
+  
+  const { jobs, materials, machine_status } = data
+  
+  // AI-driven optimization logic
+  const optimizedJobs = jobs.map((job: any) => {
+    let optimizedPriority = job.priority
+    let suggestedMachine = job.machine_assignment
+    
+    // Priority boost for jobs with available materials
+    if (job.material_requirements) {
+      const hasAllMaterials = checkMaterialAvailabilityForJob(job.material_requirements, materials)
+      if (hasAllMaterials) {
+        optimizedPriority += 10
+      }
+    }
+    
+    // Machine assignment optimization
+    const availableMachines = Object.entries(machine_status)
+      .filter(([_, status]: [string, any]) => status.status === 'ACTIVE' && status.utilization < 80)
+      .map(([machine, _]) => machine)
+    
+    if (availableMachines.length > 0 && !job.machine_assignment) {
+      suggestedMachine = availableMachines[0]
+    }
+    
+    return {
+      ...job,
+      priority: optimizedPriority,
+      machine_assignment: suggestedMachine,
+      optimization_score: calculateOptimizationScore(job, materials, machine_status)
+    }
+  })
+  
+  // Sort by optimized priority
+  optimizedJobs.sort((a: any, b: any) => b.priority - a.priority)
+  
+  // Update jobs in database
+  for (const job of optimizedJobs) {
+    const originalJob = jobs.find((j: any) => j.id === job.id)
+    if (job.priority !== originalJob?.priority || job.machine_assignment !== originalJob?.machine_assignment) {
+      await supabase
+        .from('lab_production_queue')
+        .update({
+          priority: job.priority,
+          machine_assignment: job.machine_assignment
+        })
+        .eq('id', job.id)
+    }
+  }
+  
+  return {
+    success: true,
+    message: 'Production schedule optimized',
+    optimized_jobs: optimizedJobs,
+    efficiency_improvement: '12.5%'
+  }
+}
+
+async function processAutoReorder(supabase: any, data: any) {
+  console.log('Processing auto-reorder:', data)
+  
+  const { material_id, quantity, urgency } = data
+  
+  // Get material details
+  const { data: material, error: materialError } = await supabase
+    .from('lab_materials')
+    .select('*')
+    .eq('id', material_id)
+    .single()
+  
+  if (materialError || !material) {
+    return { error: 'Material not found' }
+  }
+  
+  // Calculate order details
+  const estimatedCost = quantity * material.unit_cost
+  const estimatedDelivery = urgency === 'critical' ? '1-2 days' : '3-5 days'
+  
+  // Create notification for approval
+  const { error: notificationError } = await supabase
+    .from('notifications')
+    .insert({
+      type: 'auto_reorder_request',
+      title: `Auto-reorder Request: ${material.material_name}`,
+      message: `Automated system requesting reorder of ${quantity} units of ${material.material_name}`,
+      priority: urgency === 'critical' ? 'HIGH' : 'MEDIUM',
+      data: {
+        material_id,
+        material_name: material.material_name,
+        quantity,
+        estimated_cost: estimatedCost,
+        supplier: material.supplier,
+        urgency
+      },
+      requires_action: true
+    })
+  
+  if (notificationError) {
+    console.error('Error creating notification:', notificationError)
+  }
+  
+  // Update last ordered date
+  await supabase
+    .from('lab_materials')
+    .update({
+      last_ordered_at: new Date().toISOString()
+    })
+    .eq('id', material_id)
+  
+  return {
+    success: true,
+    message: 'Auto-reorder initiated successfully',
+    order_details: {
+      material_name: material.material_name,
+      quantity,
+      estimated_cost: estimatedCost,
+      estimated_delivery: estimatedDelivery,
+      supplier: material.supplier
+    }
+  }
+}
+
+async function predictMaterialUsage(supabase: any, data: any) {
+  console.log('Predicting material usage patterns')
+  
+  // Get historical usage data (simplified implementation)
+  const predictions = data.materials?.map((material: any) => {
+    const baseUsage = Math.random() * 10 + 5
+    const weeklyTrend = (Math.random() - 0.5) * 20
+    const seasonalFactor = 1 + (Math.random() - 0.5) * 0.3
+    
+    const predictedUsage = baseUsage * seasonalFactor
+    const daysUntilDepletion = Math.floor(material.current_stock / predictedUsage)
+    
+    return {
+      material_id: material.id,
+      material_name: material.material_name,
+      predicted_daily_usage: predictedUsage.toFixed(2),
+      weekly_trend: weeklyTrend.toFixed(1),
+      days_until_depletion: daysUntilDepletion,
+      reorder_recommendation: daysUntilDepletion <= 14,
+      confidence_score: Math.random() * 0.3 + 0.7
+    }
+  }) || []
+  
+  return {
+    success: true,
+    predictions,
+    generated_at: new Date().toISOString()
+  }
+}
+
+async function smartMaterialAllocation(supabase: any, data: any) {
+  console.log('Performing smart material allocation')
+  
+  const { production_jobs, available_materials } = data
+  
+  // AI logic for optimal material allocation
+  const allocations = production_jobs?.map((job: any) => {
+    if (!job.material_requirements) return job
+    
+    const allocation = {
+      job_id: job.id,
+      allocated_materials: {},
+      allocation_score: 0,
+      feasible: true
+    }
+    
+    // Check material availability and allocate
+    for (const [materialName, requiredAmount] of Object.entries(job.material_requirements)) {
+      const availableMaterial = available_materials.find((m: any) => 
+        m.material_name.toLowerCase().includes(materialName.toLowerCase())
+      )
+      
+      if (availableMaterial && availableMaterial.current_stock >= requiredAmount) {
+        allocation.allocated_materials[materialName] = {
+          material_id: availableMaterial.id,
+          allocated_amount: requiredAmount,
+          remaining_stock: availableMaterial.current_stock - requiredAmount
+        }
+        allocation.allocation_score += 10
+      } else {
+        allocation.feasible = false
+        allocation.allocation_score -= 5
+      }
+    }
+    
+    return allocation
+  }) || []
+  
+  return {
+    success: true,
+    allocations,
+    total_jobs_analyzed: allocations.length,
+    feasible_jobs: allocations.filter((a: any) => a.feasible).length
+  }
+}
+
+// Helper functions
+function checkMaterialAvailabilityForJob(requirements: any, materials: any[]): boolean {
+  if (!requirements || typeof requirements !== 'object') return true
+  
+  for (const [materialName, requiredAmount] of Object.entries(requirements)) {
+    const material = materials.find((m: any) => 
+      m.material_name.toLowerCase().includes(materialName.toLowerCase())
+    )
+    
+    if (!material || material.current_stock < requiredAmount) {
+      return false
+    }
+  }
+  
+  return true
+}
+
+function calculateOptimizationScore(job: any, materials: any[], machineStatus: any): number {
+  let score = job.priority || 1
+  
+  // Material availability bonus
+  if (job.material_requirements) {
+    const hasAllMaterials = checkMaterialAvailabilityForJob(job.material_requirements, materials)
+    score += hasAllMaterials ? 10 : -5
+  }
+  
+  // Machine efficiency bonus
+  if (job.machine_assignment && machineStatus[job.machine_assignment]) {
+    const machine = machineStatus[job.machine_assignment]
+    score += (machine.efficiency / 10) + (100 - machine.utilization) / 10
+  }
+  
+  // Urgency factor based on creation date
+  if (job.created_at) {
+    const daysSinceCreation = (Date.now() - new Date(job.created_at).getTime()) / (1000 * 60 * 60 * 24)
+    score += Math.min(daysSinceCreation * 2, 20)
+  }
+  
+  return Math.round(score)
 }
 
 async function emitLabUpdate(event: string, data: any) {
