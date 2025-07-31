@@ -48,6 +48,22 @@ serve(async (req) => {
   socket.onmessage = async (event) => {
     try {
       const message = JSON.parse(event.data);
+      
+      // Input validation
+      if (!message || typeof message !== 'object' || !message.type || typeof message.type !== 'string') {
+        console.error('Invalid message format');
+        socket.send(JSON.stringify({ error: 'Invalid message format' }));
+        return;
+      }
+
+      // Validate message type
+      const validTypes = ['auth', 'request_kpis', 'request_lab_status', 'update_job_status', 'procedure_event', 'trigger_forecast'];
+      if (!validTypes.includes(message.type)) {
+        console.error('Invalid message type:', message.type);
+        socket.send(JSON.stringify({ error: 'Invalid message type' }));
+        return;
+      }
+
       console.log("📨 Received message:", message);
 
       switch (message.type) {

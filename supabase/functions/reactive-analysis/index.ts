@@ -439,7 +439,30 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     );
 
-    const { event } = await req.json();
+    const requestBody = await req.json();
+    
+    // Input validation
+    if (!requestBody || typeof requestBody !== 'object') {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid request body' 
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    const { event } = requestBody;
+    
+    // Validate event type
+    if (!event || event !== 'run_analysis') {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid or missing event type. Expected: run_analysis' 
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
     const analysisService = new ReactiveAnalysisService(supabaseClient);
 
     switch (event) {

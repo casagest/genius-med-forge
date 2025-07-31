@@ -279,7 +279,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     );
 
-    const { event, data } = await req.json();
+    const requestBody = await req.json();
+    
+    // Input validation
+    if (!requestBody || typeof requestBody !== 'object') {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid request body' 
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    const { event, data } = requestBody;
+    
+    // Validate event type
+    const validEvents = ['optimize_schedule', 'calculate_job_score'];
+    if (!event || !validEvents.includes(event)) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid or missing event type' 
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
     const scheduler = new SmartSchedulingService(supabaseClient);
 
     switch (event) {
