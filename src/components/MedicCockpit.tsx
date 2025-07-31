@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Brain, Mic, Eye, Activity, Shield, Zap } from 'lucide-react';
 import VoiceInterface from './VoiceInterface';
+import { MedicalProcedureTracker } from './MedicalProcedureTracker';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AIDecision {
@@ -196,11 +197,12 @@ export function MedicCockpit() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="analysis">AI Analysis</TabsTrigger>
           <TabsTrigger value="voice">Voice AI</TabsTrigger>
           <TabsTrigger value="monitoring">Live Monitoring</TabsTrigger>
+          <TabsTrigger value="procedures">🏥 Procedures</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -428,6 +430,10 @@ export function MedicCockpit() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="procedures" className="mt-6">
+          <MedicalProcedureTracker />
         </TabsContent>
       </Tabs>
     </div>
