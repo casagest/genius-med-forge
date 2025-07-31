@@ -316,7 +316,33 @@ export function MedicalAIInterface() {
             )}
           </CardContent>
         </Card>
-      </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="voice" className="mt-0">
+          <VoiceInterface 
+            onSpeakingChange={setIsVoiceSpeaking}
+          />
+        </TabsContent>
+
+        <TabsContent value="analysis" className="mt-0">
+          <div className="p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Analysis Dashboard
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center text-muted-foreground p-8">
+                  Advanced analytics dashboard coming soon
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

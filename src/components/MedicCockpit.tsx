@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Brain, Mic, Eye, Activity, Shield, Zap } from 'lucide-react';
-import { VoiceInterface } from './VoiceInterface';
+import VoiceInterface from './VoiceInterface';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AIDecision {
@@ -349,8 +349,10 @@ export function MedicCockpit() {
 
         <TabsContent value="voice" className="mt-6">
           <VoiceInterface 
-            onMessageReceived={handleVoiceMessage}
-            onAudioReceived={handleAudioReceived}
+            onSpeakingChange={(speaking) => {
+              // Handle speaking state change
+              console.log('Voice AI speaking:', speaking);
+            }}
           />
         </TabsContent>
 
