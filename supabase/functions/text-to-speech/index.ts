@@ -6,17 +6,48 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Input validation schemas
+const VALID_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+const VALID_MODELS = ['tts-1', 'tts-1-hd'];
+const MAX_TEXT_LENGTH = 4096;
+
+function validateInput(data: any) {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid request body');
+  }
+  
+  const { text, voice = 'alloy', model = 'tts-1' } = data;
+  
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    throw new Error('Text is required and must be a non-empty string');
+  }
+  
+  if (text.length > MAX_TEXT_LENGTH) {
+    throw new Error(`Text exceeds maximum length of ${MAX_TEXT_LENGTH} characters`);
+  }
+  
+  if (!VALID_VOICES.includes(voice)) {
+    throw new Error(`Invalid voice. Must be one of: ${VALID_VOICES.join(', ')}`);
+  }
+  
+  if (!VALID_MODELS.includes(model)) {
+    throw new Error(`Invalid model. Must be one of: ${VALID_MODELS.join(', ')}`);
+  }
+  
+  // Sanitize text input
+  const sanitizedText = text.replace(/[<>]/g, '').trim();
+  
+  return { text: sanitizedText, voice, model };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { text, voice = 'alloy', model = 'tts-1' } = await req.json();
-
-    if (!text) {
-      throw new Error('Text is required');
-    }
+    const requestBody = await req.json();
+    const { text, voice, model } = validateInput(requestBody);
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {

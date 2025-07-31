@@ -36,17 +36,39 @@ function processBase64Chunks(base64String: string, chunkSize = 32768) {
   return result;
 }
 
+// Input validation
+function validateAudioInput(data: any) {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid request body');
+  }
+  
+  const { audio } = data;
+  
+  if (!audio || typeof audio !== 'string') {
+    throw new Error('Audio data is required and must be a base64 string');
+  }
+  
+  // Basic base64 validation
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(audio)) {
+    throw new Error('Invalid base64 audio data');
+  }
+  
+  // Check reasonable size limits (50MB max)
+  if (audio.length > 67108864) { // 50MB in base64
+    throw new Error('Audio data too large. Maximum size is 50MB');
+  }
+  
+  return { audio };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { audio } = await req.json();
-    
-    if (!audio) {
-      throw new Error('No audio data provided');
-    }
+    const requestBody = await req.json();
+    const { audio } = validateAudioInput(requestBody);
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
