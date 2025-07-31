@@ -16,8 +16,15 @@ interface RiskReport {
 }
 
 serve(async (req) => {
+  console.log(`🚀 AgentCEO: ${req.method} request received`);
+  
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    console.log('📋 Handling CORS preflight request');
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
   }
 
   try {
@@ -69,11 +76,6 @@ serve(async (req) => {
 
     const eventType = event;
     const eventData = data || {};
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     switch (eventType) {
       case 'generate_analysis_report': {
