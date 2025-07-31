@@ -35,6 +35,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useRealtimeAgents } from '@/hooks/useRealtimeAgents';
+import { RiskReportList } from '@/components/RiskReportList';
 
 interface RiskReport {
   id: string;
@@ -513,43 +514,7 @@ export function StrategicOpsPanel() {
         </TabsContent>
 
         <TabsContent value="reports" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Risk Reports & AI Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredReports.map(report => (
-                  <div key={report.id} className="border rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-semibold">{report.report_type}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(report.generated_at).toLocaleString('ro-RO')}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge variant={getRiskColor(report.risk_level)}>
-                          {report.risk_level}
-                        </Badge>
-                        <Badge variant="outline">
-                          {(report.confidence_score * 100).toFixed(0)}%
-                        </Badge>
-                      </div>
-                    </div>
-                    {report.requires_action && (
-                      <div className="mt-2">
-                        <Button size="sm" variant="destructive">
-                          <Zap className="h-3 w-3 mr-1" />
-                          Acțiune Necesară
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <RiskReportList />
         </TabsContent>
 
         <TabsContent value="analytics" className="mt-6">
