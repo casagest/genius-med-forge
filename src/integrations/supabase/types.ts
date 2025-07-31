@@ -348,6 +348,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_rate_limit: {
+        Args: {
+          action_type: string
+          time_window_minutes?: number
+          max_attempts?: number
+        }
+        Returns: boolean
+      }
       get_user_role: {
         Args: { check_user_id?: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -358,6 +366,10 @@ export type Database = {
           required_role: Database["public"]["Enums"]["app_role"]
         }
         Returns: boolean
+      }
+      log_security_event: {
+        Args: { event_type: string; event_data?: Json }
+        Returns: undefined
       }
     }
     Enums: {
