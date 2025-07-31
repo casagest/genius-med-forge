@@ -86,10 +86,12 @@ export type Database = {
           created_at: string
           estimated_duration: string | null
           id: string
+          is_urgent: boolean | null
           job_code: string
           job_type: string
           machine_assignment: string | null
           material_requirements: Json | null
+          patient_eta: string | null
           patient_id: string | null
           priority: number
           status: string
@@ -100,10 +102,12 @@ export type Database = {
           created_at?: string
           estimated_duration?: string | null
           id?: string
+          is_urgent?: boolean | null
           job_code: string
           job_type: string
           machine_assignment?: string | null
           material_requirements?: Json | null
+          patient_eta?: string | null
           patient_id?: string | null
           priority?: number
           status?: string
@@ -114,10 +118,12 @@ export type Database = {
           created_at?: string
           estimated_duration?: string | null
           id?: string
+          is_urgent?: boolean | null
           job_code?: string
           job_type?: string
           machine_assignment?: string | null
           material_requirements?: Json | null
+          patient_eta?: string | null
           patient_id?: string | null
           priority?: number
           status?: string
