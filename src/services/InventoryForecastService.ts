@@ -276,28 +276,58 @@ class InventoryForecastService {
   }
 
   /**
-   * Send email order to supplier
+   * Send email order to supplier using procurement-email edge function
    */
   private async sendEmailOrder(orderData: any): Promise<void> {
-    // In production, this would integrate with an email service like SendGrid or SES
-    console.log(`📧 EMAIL ORDER SENT to ${orderData.email}`);
-    console.log(`   Subject: Comandă automată MedicalCor - ${orderData.sku}`);
-    console.log(`   Quantity: ${orderData.quantity} units`);
-    console.log(`   Contact: ${orderData.contact_info}`);
-    
-    // Log email sent
-    await supabase.from('procedure_events').insert({
-      case_id: 'forecast_system',
-      appointment_id: 'system_generated',
-      event_type: 'email_order_sent',
-      event_data: {
+    try {
+      console.log(`📧 Sending EMAIL ORDER to ${orderData.email} for ${orderData.sku}`);
+      
+      const emailPayload = {
         sku: orderData.sku,
         quantity: orderData.quantity,
-        supplier: orderData.supplier,
-        email: orderData.email
-      },
-      timestamp: new Date().toISOString()
-    });
+        supplier_name: orderData.supplier,
+        supplier_email: orderData.email,
+        contact_person: orderData.contact_info,
+        estimated_cost: orderData.total_cost,
+        urgency: 'medium' as const,
+        case_id: `FORECAST_${Date.now()}`
+      };
+
+      const { data, error } = await supabase.functions.invoke('procurement-email', {
+        body: emailPayload
+      });
+
+      if (error) {
+        console.error('❌ Email order failed:', error);
+        throw error;
+      }
+
+      console.log(`✅ Email order sent successfully:`, data);
+      
+      // Log successful email sent
+      await supabase.from('procedure_events').insert({
+        case_id: emailPayload.case_id,
+        appointment_id: 'system_generated',
+        event_type: 'email_order_sent',
+        event_data: {
+          ...emailPayload,
+          order_id: data?.order_id,
+          message_id: data?.message_id,
+          timestamp: new Date().toISOString()
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to send email order:', error);
+      
+      // Fallback to manual task creation
+      console.log('📋 Creating manual task as fallback...');
+      await this.createManualOrderTask({
+        ...orderData,
+        fallback_reason: 'Email order failed'
+      });
+    }
   }
 
   /**
