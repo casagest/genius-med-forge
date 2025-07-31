@@ -1,7 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StrategicOpsPanel } from '@/components/StrategicOpsPanel';
 import { NeuroFabricCortex } from '@/components/NeuroFabricCortex';
-import { MedicalCockpit } from '@/components/MedicalCockpit';
+import { MedicCockpit } from '@/components/MedicCockpit';
 import { MedicalAIInterface } from '@/components/MedicalAIInterface';
 
 const Index = () => {
@@ -34,7 +34,7 @@ const Index = () => {
         </TabsContent>
         
         <TabsContent value="cockpit" className="mt-0">
-          <MedicalCockpit />
+          <MedicCockpit />
         </TabsContent>
       </Tabs>
     </div>
