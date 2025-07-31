@@ -28,10 +28,13 @@ import {
   ShoppingCart,
   PlayCircle,
   PauseCircle,
-  RotateCcw
+  RotateCcw,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useRealtimeAgents } from '@/hooks/useRealtimeAgents';
 
 interface RiskReport {
   id: string;
@@ -70,22 +73,24 @@ interface ProcurementAlert {
 
 export function StrategicOpsPanel() {
   const [reports, setReports] = useState<RiskReport[]>([]);
-  const [activeProcedures, setActiveProcedures] = useState<ActiveProcedure[]>([]);
-  const [procurementAlerts, setProcurementAlerts] = useState<ProcurementAlert[]>([]);
   const [filter, setFilter] = useState<string>('ALL');
-  const [realtimeStats, setRealtimeStats] = useState({
-    casesLast24h: 0,
-    avgCostPerCase: 0,
-    criticalAlerts: 0,
-    labEfficiency: 0,
-    predictiveAccuracy: 0
-  });
   const { toast } = useToast();
+  
+  // Real-time WebSocket connection to AI Agents
+  const {
+    isConnected,
+    isConnecting,
+    kpis,
+    procurementAlerts: realtimeProcurementAlerts,
+    activeProcedures,
+    requestKPIs,
+    triggerForecast
+  } = useRealtimeAgents('CEO');
 
   useEffect(() => {
-    fetchInitialData();
+    fetchReports();
     
-    // Real-time updates
+    // Real-time updates for reports only (KPIs come from WebSocket)
     const channel = supabase
       .channel('strategic_ops_updates')
       .on('postgres_changes', {
@@ -103,34 +108,12 @@ export function StrategicOpsPanel() {
           }
         }
       })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'active_procedures'
-      }, (payload) => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          fetchActiveProcedures();
-        }
-      })
       .subscribe();
-
-    // Update real-time stats every 30 seconds
-    const statsInterval = setInterval(updateRealtimeStats, 30000);
 
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(statsInterval);
     };
   }, []);
-
-  const fetchInitialData = async () => {
-    await Promise.all([
-      fetchReports(),
-      fetchActiveProcedures(),
-      fetchProcurementAlerts(),
-      updateRealtimeStats()
-    ]);
-  };
 
   const fetchReports = async () => {
     const { data } = await supabase
@@ -140,72 +123,6 @@ export function StrategicOpsPanel() {
       .limit(50);
     
     setReports(data || []);
-  };
-
-  const fetchActiveProcedures = async () => {
-    const { data } = await supabase
-      .from('active_procedures')
-      .select('*')
-      .in('status', ['IN_PROGRESS', 'PLANNED'])
-      .order('created_at', { ascending: false });
-    
-    setActiveProcedures(data || []);
-  };
-
-  const fetchProcurementAlerts = async () => {
-    // Simulate procurement alerts from inventory forecast service
-    const mockAlerts: ProcurementAlert[] = [
-      {
-        id: '1',
-        sku: 'pmma_disk_a1',
-        current_stock: 3,
-        required_stock: 15,
-        supplier: 'DentalTech Supplies',
-        urgency: 'high',
-        eta_hours: 48,
-        status: 'ordered'
-      },
-      {
-        id: '2',
-        sku: 'zirc_block_a2',
-        current_stock: 8,
-        required_stock: 25,
-        supplier: 'CeramTech Solutions',
-        urgency: 'medium',
-        eta_hours: 72,
-        status: 'pending'
-      }
-    ];
-    setProcurementAlerts(mockAlerts);
-  };
-
-  const updateRealtimeStats = async () => {
-    try {
-      // Fetch real-time statistics
-      const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      
-      const { data: completedCases } = await supabase
-        .from('active_procedures')
-        .select('*')
-        .eq('status', 'COMPLETED')
-        .gte('completed_at', last24h);
-
-      const { data: criticalReports } = await supabase
-        .from('analysis_reports')
-        .select('*')
-        .eq('risk_level', 'CRITICAL')
-        .eq('requires_action', true);
-
-      setRealtimeStats({
-        casesLast24h: completedCases?.length || 0,
-        avgCostPerCase: 2450, // Mock calculation
-        criticalAlerts: criticalReports?.length || 0,
-        labEfficiency: 92.5, // Mock efficiency score
-        predictiveAccuracy: 89.7 // Mock accuracy from AI models
-      });
-    } catch (error) {
-      console.error('Error updating stats:', error);
-    }
   };
 
   const playVoiceAlert = (report: RiskReport) => {
@@ -272,12 +189,28 @@ export function StrategicOpsPanel() {
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Brain className="h-8 w-8 text-primary" />
             StrategicOps Panel
+            {isConnected ? (
+              <Wifi className="h-5 w-5 text-green-500" />
+            ) : (
+              <WifiOff className="h-5 w-5 text-red-500" />
+            )}
           </h1>
           <p className="text-muted-foreground mt-1">
             Central de comandă AI pentru operațiuni critice
+            {isConnecting && " • Connecting..."}
+            {isConnected && " • Connected to AI Agents"}
+            {!isConnected && !isConnecting && " • Disconnected"}
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={triggerForecast}
+            disabled={!isConnected}
+            variant="outline"
+            size="sm"
+          >
+            🔮 Trigger Forecast
+          </Button>
           {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(level => (
             <Button
               key={level}
@@ -299,8 +232,8 @@ export function StrategicOpsPanel() {
             <CheckCircle2 className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{realtimeStats.casesLast24h}</div>
-            <p className="text-xs text-muted-foreground">+12% vs ieri</p>
+            <div className="text-2xl font-bold text-blue-600">{kpis?.casesLast24h || 0}</div>
+            <p className="text-xs text-muted-foreground">Live from AI Agent</p>
           </CardContent>
         </Card>
 
@@ -310,8 +243,8 @@ export function StrategicOpsPanel() {
             <DollarSign className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{realtimeStats.avgCostPerCase} RON</div>
-            <p className="text-xs text-muted-foreground">-8% vs target</p>
+            <div className="text-2xl font-bold text-green-600">{kpis?.avgCostPerCase || 0} RON</div>
+            <p className="text-xs text-muted-foreground">Live from AI Agent</p>
           </CardContent>
         </Card>
 
@@ -321,8 +254,8 @@ export function StrategicOpsPanel() {
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{realtimeStats.criticalAlerts}</div>
-            <p className="text-xs text-muted-foreground">Necesită acțiune</p>
+            <div className="text-2xl font-bold text-red-600">{kpis?.criticalAlerts || 0}</div>
+            <p className="text-xs text-muted-foreground">Live from AI Agent</p>
           </CardContent>
         </Card>
 
@@ -332,8 +265,8 @@ export function StrategicOpsPanel() {
             <Factory className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{realtimeStats.labEfficiency}%</div>
-            <Progress value={realtimeStats.labEfficiency} className="mt-2 h-1" />
+            <div className="text-2xl font-bold text-purple-600">{kpis?.labEfficiency || 0}%</div>
+            <Progress value={kpis?.labEfficiency || 0} className="mt-2 h-1" />
           </CardContent>
         </Card>
 
@@ -343,8 +276,8 @@ export function StrategicOpsPanel() {
             <Brain className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{realtimeStats.predictiveAccuracy}%</div>
-            <Progress value={realtimeStats.predictiveAccuracy} className="mt-2 h-1" />
+            <div className="text-2xl font-bold text-orange-600">{kpis?.predictiveAccuracy || 0}%</div>
+            <Progress value={kpis?.predictiveAccuracy || 0} className="mt-2 h-1" />
           </CardContent>
         </Card>
       </div>
@@ -369,7 +302,7 @@ export function StrategicOpsPanel() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {activeProcedures.length > 0 ? activeProcedures.map(procedure => {
+                  {activeProcedures && activeProcedures.length > 0 ? activeProcedures.map(procedure => {
                     const startTime = new Date(procedure.started_at || procedure.created_at);
                     const currentDuration = Math.floor((Date.now() - startTime.getTime()) / (1000 * 60));
                     const progressPercentage = procedure.estimated_duration_minutes 
@@ -434,7 +367,7 @@ export function StrategicOpsPanel() {
                   }) : (
                     <div className="text-center text-muted-foreground p-8">
                       <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Nu există intervenții active în acest moment</p>
+                      <p>{isConnected ? 'Nu există intervenții active în acest moment' : 'Connecting to AI Agents...'}</p>
                     </div>
                   )}
                 </div>
@@ -516,37 +449,37 @@ export function StrategicOpsPanel() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {procurementAlerts.map(alert => (
+                {realtimeProcurementAlerts?.recent_orders?.map(alert => (
                   <div key={alert.id} className="border rounded-lg p-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h4 className="font-semibold">{alert.sku}</h4>
+                        <h4 className="font-semibold">{alert.analysis_data?.sku || 'Material'}</h4>
                         <p className="text-sm text-muted-foreground">
-                          Furnizor: {alert.supplier}
+                          Furnizor: {alert.analysis_data?.supplier || 'Unknown'}
                         </p>
                       </div>
                       <div className="flex gap-2">
-                        <Badge variant={getRiskColor(alert.urgency.toUpperCase())}>
-                          {alert.urgency.toUpperCase()}
+                        <Badge variant={getRiskColor(alert.risk_level)}>
+                          {alert.risk_level}
                         </Badge>
                         <Badge variant="outline">
-                          {alert.status}
+                          FORECAST
                         </Badge>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
-                        <span className="text-muted-foreground">Stoc actual:</span>
-                        <div className="font-semibold text-red-600">{alert.current_stock}</div>
+                        <span className="text-muted-foreground">Quantity:</span>
+                        <div className="font-semibold text-blue-600">{alert.analysis_data?.quantity || 0}</div>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">Necesar:</span>
-                        <div className="font-semibold">{alert.required_stock}</div>
+                        <span className="text-muted-foreground">Cost:</span>
+                        <div className="font-semibold">{alert.analysis_data?.total_cost || 0} RON</div>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">ETA:</span>
-                        <div className="font-semibold text-blue-600">{alert.eta_hours}h</div>
+                        <span className="text-muted-foreground">Confidence:</span>
+                        <div className="font-semibold text-green-600">{Math.round(alert.confidence_score * 100)}%</div>
                       </div>
                     </div>
 
@@ -558,17 +491,17 @@ export function StrategicOpsPanel() {
                       </div>
                       <div className="w-4 h-px bg-gray-300" />
                       <div className="flex items-center gap-1">
-                        <CheckCircle2 className={`h-4 w-4 ${alert.status !== 'pending' ? 'text-green-500' : 'text-gray-300'}`} />
+                        <CheckCircle2 className="text-green-500 h-4 w-4" />
+                        <span className="text-xs">Forecast</span>
+                      </div>
+                      <div className="w-4 h-px bg-gray-300" />
+                      <div className="flex items-center gap-1">
+                        <CheckCircle2 className={`h-4 w-4 ${alert.requires_action ? 'text-gray-300' : 'text-green-500'}`} />
                         <span className="text-xs">Comandat</span>
                       </div>
                       <div className="w-4 h-px bg-gray-300" />
                       <div className="flex items-center gap-1">
-                        <CheckCircle2 className={`h-4 w-4 ${alert.status === 'shipped' || alert.status === 'delivered' ? 'text-green-500' : 'text-gray-300'}`} />
-                        <span className="text-xs">Expediat</span>
-                      </div>
-                      <div className="w-4 h-px bg-gray-300" />
-                      <div className="flex items-center gap-1">
-                        <CheckCircle2 className={`h-4 w-4 ${alert.status === 'delivered' ? 'text-green-500' : 'text-gray-300'}`} />
+                        <CheckCircle2 className="text-gray-300 h-4 w-4" />
                         <span className="text-xs">Livrat</span>
                       </div>
                     </div>
@@ -632,9 +565,9 @@ export function StrategicOpsPanel() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Predictive Accuracy</span>
-                    <span className="font-semibold">{realtimeStats.predictiveAccuracy}%</span>
+                    <span className="font-semibold">{kpis?.predictiveAccuracy || 0}%</span>
                   </div>
-                  <Progress value={realtimeStats.predictiveAccuracy} className="h-2" />
+                  <Progress value={kpis?.predictiveAccuracy || 0} className="h-2" />
                   
                   <div className="flex justify-between items-center">
                     <span className="text-sm">False Positive Rate</span>
