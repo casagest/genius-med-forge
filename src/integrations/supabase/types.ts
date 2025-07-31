@@ -14,7 +14,176 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      analysis_reports: {
+        Row: {
+          analysis_data: Json | null
+          confidence_score: number
+          generated_at: string
+          id: string
+          report_type: string
+          requires_action: boolean | null
+          risk_level: string
+        }
+        Insert: {
+          analysis_data?: Json | null
+          confidence_score: number
+          generated_at?: string
+          id?: string
+          report_type: string
+          requires_action?: boolean | null
+          risk_level: string
+        }
+        Update: {
+          analysis_data?: Json | null
+          confidence_score?: number
+          generated_at?: string
+          id?: string
+          report_type?: string
+          requires_action?: boolean | null
+          risk_level?: string
+        }
+        Relationships: []
+      }
+      lab_materials: {
+        Row: {
+          created_at: string
+          current_stock: number
+          id: string
+          last_ordered_at: string | null
+          material_name: string
+          minimum_threshold: number
+          supplier: string | null
+          unit_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_stock?: number
+          id?: string
+          last_ordered_at?: string | null
+          material_name: string
+          minimum_threshold?: number
+          supplier?: string | null
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_stock?: number
+          id?: string
+          last_ordered_at?: string | null
+          material_name?: string
+          minimum_threshold?: number
+          supplier?: string | null
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lab_production_queue: {
+        Row: {
+          actual_duration: string | null
+          created_at: string
+          estimated_duration: string | null
+          id: string
+          job_code: string
+          job_type: string
+          machine_assignment: string | null
+          material_requirements: Json | null
+          patient_id: string | null
+          priority: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_duration?: string | null
+          created_at?: string
+          estimated_duration?: string | null
+          id?: string
+          job_code: string
+          job_type: string
+          machine_assignment?: string | null
+          material_requirements?: Json | null
+          patient_id?: string | null
+          priority?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_duration?: string | null
+          created_at?: string
+          estimated_duration?: string | null
+          id?: string
+          job_code?: string
+          job_type?: string
+          machine_assignment?: string | null
+          material_requirements?: Json | null
+          patient_id?: string | null
+          priority?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_production_queue_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patients: {
+        Row: {
+          created_at: string
+          digital_twin_id: string | null
+          id: string
+          patient_code: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          digital_twin_id?: string | null
+          id?: string
+          patient_code: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          digital_twin_id?: string | null
+          id?: string
+          patient_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          role: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
