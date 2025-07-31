@@ -21,26 +21,52 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🔍 AgentCEO received request body:', JSON.stringify(await req.clone().json(), null, 2));
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    console.log('🔍 AgentCEO received request');
     const requestBody = await req.json();
-    console.log('📋 Processing AgentCEO request:', requestBody);
+    console.log('📋 Request body:', JSON.stringify(requestBody, null, 2));
 
     // Handle both old and new formats
     const { event, data, action } = requestBody;
     
-    // If legacy format with action
-    if (action) {
-      console.log('📋 Legacy format detected with action:', action);
+    // If legacy format with action (from MedicalAIInterface)
+    if (action === 'strategic_analysis') {
+      console.log('📋 Legacy format: strategic_analysis');
       
-      if (action === 'strategic_analysis') {
+      try {
         const strategicData = await generateStrategicAnalysis(supabase);
+        console.log('✅ Strategic analysis generated successfully');
+        
         return new Response(JSON.stringify(strategicData), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('❌ Error in strategic analysis:', error);
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: error.message 
+        }), {
+          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
     }
 
-    // If new format with event/data
+    // If no valid action/event, return error
+    if (!event && !action) {
+      console.error('❌ No valid event or action provided');
+      return new Response(JSON.stringify({ 
+        error: 'Missing event or action parameter' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const eventType = event;
     const eventData = data || {};
 
