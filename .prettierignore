@@ -1,0 +1,8 @@
+dist
+build
+coverage
+node_modules
+.husky
+*.min.js
+*.min.css
+supabase/functions/**/index.ts
