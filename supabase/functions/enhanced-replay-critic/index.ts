@@ -1,11 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('EnhancedReplayCritic');
 
 interface ProductionEventLog {
   id: string;
@@ -93,7 +92,7 @@ class ReplayCriticService {
       .single();
 
     if (error) {
-      console.error('Error fetching job details:', error);
+      logger.error('Error fetching job details', error);
       return null;
     }
 
@@ -453,7 +452,7 @@ class ReplayCriticService {
       });
 
     if (error) {
-      console.error('Error saving analysis report:', error);
+      logger.error('Error saving analysis report', error);
       throw error;
     }
   }
@@ -469,7 +468,7 @@ class ReplayCriticService {
         const report = await this.analyzeProductionJob(jobId);
         reports.push(report);
       } catch (error) {
-        console.error(`Error analyzing job ${jobId}:`, error);
+        logger.error(`Error analyzing job ${jobId}`, error);
       }
     }
     
@@ -478,9 +477,11 @@ class ReplayCriticService {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -495,29 +496,22 @@ serve(async (req) => {
     switch (event) {
       case 'analyze_job':
         const { jobId } = data;
+        logger.info('Analyzing job', { jobId });
         const report = await criticService.analyzeProductionJob(jobId);
-        return new Response(JSON.stringify({ report }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, { report });
 
       case 'batch_analyze':
         const { jobIds } = data;
+        logger.info('Batch analyzing jobs', { count: jobIds.length });
         const reports = await criticService.batchAnalyzeJobs(jobIds);
-        return new Response(JSON.stringify({ reports }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, { reports });
 
       default:
-        return new Response(JSON.stringify({ error: 'Unknown event type' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        logger.warn('Unknown event type', { event });
+        return createErrorResponse(req, 'Unknown event type', 400);
     }
   } catch (error) {
-    console.error('Error in replay-critic function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 500);
   }
 });

@@ -1,11 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('SmartScheduler');
 
 interface ProductionJob {
   id: string;
@@ -268,9 +267,11 @@ class SmartSchedulingService {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -283,54 +284,39 @@ serve(async (req) => {
     
     // Input validation
     if (!requestBody || typeof requestBody !== 'object') {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid request body' 
-      }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      logger.warn('Invalid request body');
+      return createErrorResponse(req, 'Invalid request body', 400);
     }
 
     const { event, data } = requestBody;
-    
+
     // Validate event type
     const validEvents = ['optimize_schedule', 'calculate_job_score'];
     if (!event || !validEvents.includes(event)) {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid or missing event type' 
-      }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      logger.warn('Invalid or missing event type', { event });
+      return createErrorResponse(req, 'Invalid or missing event type', 400);
     }
 
     const scheduler = new SmartSchedulingService(supabaseClient);
 
     switch (event) {
       case 'optimize_schedule':
+        logger.info('Optimizing schedule');
         const result = await scheduler.getOptimizedSchedule();
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, result);
 
       case 'calculate_job_score':
         const { job, materialAvailability, machineStatus } = data;
+        logger.debug('Calculating job score', { jobId: job?.id });
         const score = scheduler.calculatePriorityScore(job, materialAvailability, machineStatus);
-        return new Response(JSON.stringify({ score }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, { score });
 
       default:
-        return new Response(JSON.stringify({ error: 'Unknown event type' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        logger.warn('Unknown event type', { event });
+        return createErrorResponse(req, 'Unknown event type', 400);
     }
   } catch (error) {
-    console.error('Error in smart-scheduler function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 500);
   }
 });

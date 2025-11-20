@@ -1,11 +1,10 @@
 // Real-time WebSocket communication hub for AI Agents
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCorsPreflightRequest, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('RealtimeAgents');
 
 interface ConnectedClient {
   socket: WebSocket;
@@ -18,38 +17,37 @@ interface ConnectedClient {
 const connectedClients = new Map<string, ConnectedClient>();
 
 serve(async (req) => {
-  console.log("🚀 Realtime Agents function called");
-  console.log("Headers:", req.headers);
-  console.log("Method:", req.method);
-  console.log("URL:", req.url);
+  logger.info("Realtime Agents function called", {
+    method: req.method,
+    url: req.url
+  });
 
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    console.log("📋 Handling CORS preflight");
-    return new Response(null, { headers: corsHeaders });
+    logger.debug("Handling CORS preflight");
+    return handleCorsPreflightRequest(req);
   }
 
   // Handle WebSocket upgrade
   const upgrade = req.headers.get("upgrade") || "";
-  console.log("🔧 Upgrade header:", upgrade);
-  
+  logger.debug("Upgrade header received", { upgrade });
+
   if (upgrade.toLowerCase() !== "websocket") {
-    console.log("❌ Not a WebSocket upgrade request");
-    return new Response("Expected WebSocket connection", { 
-      status: 400, 
-      headers: corsHeaders 
-    });
+    logger.warn("Not a WebSocket upgrade request");
+    return createErrorResponse(req, "Expected WebSocket connection", 400);
   }
 
-  console.log("🔌 Upgrading to WebSocket");
+  logger.info("Upgrading to WebSocket");
   const { socket, response } = Deno.upgradeWebSocket(req);
-  
+
   // Initialize Supabase client
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  
-  console.log("🗄️ Supabase URL:", supabaseUrl ? "✅ Found" : "❌ Missing");
-  console.log("🔑 Supabase Key:", supabaseKey ? "✅ Found" : "❌ Missing");
+
+  logger.debug("Supabase configuration", {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseKey
+  });
   
   const supabase = createClient(
     supabaseUrl ?? '',
@@ -60,7 +58,7 @@ serve(async (req) => {
   let clientRole: 'CEO' | 'LAB' | 'MEDIC';
 
   socket.onopen = () => {
-    console.log("🔌 WebSocket connection opened");
+    logger.info("WebSocket connection opened");
   };
 
   socket.onmessage = async (event) => {
@@ -69,7 +67,7 @@ serve(async (req) => {
       
       // Input validation
       if (!message || typeof message !== 'object' || !message.type || typeof message.type !== 'string') {
-        console.error('Invalid message format');
+        logger.error('Invalid message format');
         socket.send(JSON.stringify({ error: 'Invalid message format' }));
         return;
       }
@@ -77,12 +75,12 @@ serve(async (req) => {
       // Validate message type
       const validTypes = ['auth', 'request_kpis', 'request_lab_status', 'update_job_status', 'procedure_event', 'trigger_forecast'];
       if (!validTypes.includes(message.type)) {
-        console.error('Invalid message type:', message.type);
+        logger.error('Invalid message type', { type: message.type });
         socket.send(JSON.stringify({ error: 'Invalid message type' }));
         return;
       }
 
-      console.log("📨 Received message:", message);
+      logger.debug("Received message", { type: message.type });
 
       switch (message.type) {
         case 'auth': {
@@ -103,7 +101,7 @@ serve(async (req) => {
             message: `Connected as ${clientRole}`
           }));
 
-          console.log(`✅ Client ${clientId} authenticated as ${clientRole}`);
+          logger.info('Client authenticated', { clientId, role: clientRole });
 
           // Send initial data based on role
           await sendInitialData(socket, clientRole, supabase);
@@ -157,7 +155,7 @@ serve(async (req) => {
           }));
       }
     } catch (error) {
-      console.error("❌ Message processing error:", error);
+      logger.error("Message processing error", error);
       socket.send(JSON.stringify({
         type: 'error',
         message: error.message
@@ -168,12 +166,12 @@ serve(async (req) => {
   socket.onclose = () => {
     if (clientId) {
       connectedClients.delete(clientId);
-      console.log(`🔌 Client ${clientId} disconnected`);
+      logger.info('Client disconnected', { clientId });
     }
   };
 
   socket.onerror = (error) => {
-    console.error("❌ WebSocket error:", error);
+    logger.error("WebSocket error", error);
   };
 
   return response;
@@ -229,7 +227,7 @@ async function sendInitialData(socket: WebSocket, role: string, supabase: any) {
       }
     }
   } catch (error) {
-    console.error("❌ Error sending initial data:", error);
+    logger.error("Error sending initial data", error);
   }
 }
 
@@ -503,7 +501,7 @@ function broadcastToClients(roles: string[], message: any) {
       try {
         client.socket.send(JSON.stringify(message));
       } catch (error) {
-        console.error(`❌ Failed to send to client ${clientId}:`, error);
+        logger.error('Failed to send to client', error, { clientId });
         connectedClients.delete(clientId);
       }
     }
@@ -517,7 +515,7 @@ setInterval(() => {
     if (now - client.lastSeen > 5 * 60 * 1000) {
       client.socket.close();
       connectedClients.delete(clientId);
-      console.log(`🧹 Cleaned up inactive client: ${clientId}`);
+      logger.debug('Cleaned up inactive client', { clientId });
     }
   }
 }, 5 * 60 * 1000);

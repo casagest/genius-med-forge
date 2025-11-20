@@ -1,15 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('RealtimeMedicalAI');
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -18,7 +19,7 @@ serve(async (req) => {
       throw new Error('OPENAI_API_KEY is not set');
     }
 
-    console.log('Creating realtime session...');
+    logger.info('Creating realtime session');
 
     // Request an ephemeral token from OpenAI
     const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
@@ -47,21 +48,16 @@ Current context: You are integrated into the Medical Cockpit interface where doc
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
+      logger.error('OpenAI API error', { status: response.status, errorText });
       throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
-    console.log("Realtime session created successfully:", data.id);
+    logger.info("Realtime session created successfully", { sessionId: data.id });
 
-    return new Response(JSON.stringify(data), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return createJsonResponse(req, data);
   } catch (error) {
-    console.error("Error creating realtime session:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    logger.error("Request processing failed", error);
+    return createErrorResponse(req, error, 500);
   }
 });

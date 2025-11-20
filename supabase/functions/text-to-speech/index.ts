@@ -1,10 +1,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('TextToSpeech');
 
 // Input validation schemas
 const VALID_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
@@ -41,8 +40,10 @@ function validateInput(data: any) {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -54,7 +55,7 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    console.log('Generating medical voice response:', text);
+    logger.info('Generating voice response', { textLength: text.length, voice, model });
 
     // Generate speech from text using OpenAI TTS
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -83,24 +84,13 @@ serve(async (req) => {
       String.fromCharCode(...new Uint8Array(arrayBuffer))
     );
 
-    return new Response(
-      JSON.stringify({ 
-        audioContent: base64Audio,
-        format: 'mp3',
-        voice: voice
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    );
+    return createJsonResponse(req, {
+      audioContent: base64Audio,
+      format: 'mp3',
+      voice: voice
+    });
   } catch (error) {
-    console.error('Error in text-to-speech function:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    );
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 400);
   }
 });

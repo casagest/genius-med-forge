@@ -1,11 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('InventoryForecast');
 
 interface ProductionJob {
   id: string;
@@ -107,7 +106,7 @@ class InventoryForecastService {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Error fetching production jobs:', error);
+      logger.error('Error fetching production jobs', error);
       return [];
     }
 
@@ -124,7 +123,7 @@ class InventoryForecastService {
       .order('material_name');
 
     if (error) {
-      console.error('Error fetching materials:', error);
+      logger.error('Error fetching materials', error);
       return [];
     }
 
@@ -375,9 +374,11 @@ class InventoryForecastService {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -392,28 +393,21 @@ serve(async (req) => {
     switch (event) {
       case 'run_forecast':
         const daysAhead = data?.daysAhead || 14;
+        logger.info('Running forecast analysis', { daysAhead });
         const result = await forecastService.runForecastAnalysis(daysAhead);
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, result);
 
       case 'generate_reorders':
+        logger.info('Generating reorder suggestions');
         const reorders = await forecastService.generateReorderSuggestions();
-        return new Response(JSON.stringify({ reorders }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, { reorders });
 
       default:
-        return new Response(JSON.stringify({ error: 'Unknown event type' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        logger.warn('Unknown event type', { event });
+        return createErrorResponse(req, 'Unknown event type', 400);
     }
   } catch (error) {
-    console.error('Error in inventory-forecast function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 500);
   }
 });

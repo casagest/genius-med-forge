@@ -1,11 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('MedicalProcedureHandler');
 
 interface BaseProcedureEvent {
   appointmentId: string;
@@ -41,7 +40,7 @@ class MedicalProcedureHandler {
    * Process incoming medical procedure events
    */
   public async processProcedureEvent(payload: ProcedureEventPayload): Promise<any> {
-    console.log(`Processing procedure event: ${payload.eventType}`, payload);
+    logger.info(`Processing procedure event: ${payload.eventType}`, { payload });
 
     // Store the event
     await this.storeProcedureEvent(payload);
@@ -64,7 +63,7 @@ class MedicalProcedureHandler {
         return await this.handleSurgeryEnd(payload);
       
       default:
-        console.log(`Unknown event type: ${payload.eventType}`);
+        logger.debug(`Unknown event type: ${payload.eventType}`);
         return { success: true, message: 'Event stored but not processed' };
     }
   }
@@ -88,7 +87,7 @@ class MedicalProcedureHandler {
       });
 
     if (error) {
-      console.error('Error storing procedure event:', error);
+      logger.error('Error storing procedure event', error);
       throw error;
     }
   }
@@ -111,7 +110,7 @@ class MedicalProcedureHandler {
       });
 
     if (error) {
-      console.error('Error creating active procedure:', error);
+      logger.error('Error creating active procedure', error);
       throw error;
     }
 
@@ -147,7 +146,7 @@ class MedicalProcedureHandler {
         .eq('id', material.id);
 
       if (updateError) {
-        console.error('Error updating material stock:', updateError);
+        logger.error('Error updating material stock', updateError);
       }
 
       // Update active procedure materials used
@@ -259,7 +258,7 @@ class MedicalProcedureHandler {
         .eq('appointment_id', payload.appointmentId);
 
       if (updateError) {
-        console.error('Error completing procedure:', updateError);
+        logger.error('Error completing procedure', updateError);
       }
 
       // Trigger quality analysis
@@ -317,7 +316,7 @@ class MedicalProcedureHandler {
       .eq('appointment_id', appointmentId);
 
     if (error) {
-      console.error('Error updating procedure data:', error);
+      logger.error('Error updating procedure data', error);
     }
   }
 
@@ -330,7 +329,7 @@ class MedicalProcedureHandler {
         body: { event: 'run_analysis' }
       });
     } catch (error) {
-      console.error('Error triggering reactive analysis:', error);
+      logger.error('Error triggering reactive analysis', error);
     }
   }
 
@@ -355,7 +354,7 @@ class MedicalProcedureHandler {
         });
       }
     } catch (error) {
-      console.error('Error triggering quality analysis:', error);
+      logger.error('Error triggering quality analysis', error);
     }
   }
 
@@ -368,7 +367,7 @@ class MedicalProcedureHandler {
         body: { event: 'run_forecast' }
       });
     } catch (error) {
-      console.error('Error triggering inventory forecast:', error);
+      logger.error('Error triggering inventory forecast', error);
     }
   }
 
@@ -376,7 +375,7 @@ class MedicalProcedureHandler {
    * Trigger low stock alert
    */
   private async triggerLowStockAlert(material: any, currentStock: number): Promise<void> {
-    console.log(`LOW STOCK ALERT: ${material.material_name} - Current: ${currentStock}, Min: ${material.minimum_threshold}`);
+    logger.warn(`LOW STOCK ALERT: ${material.material_name}`, { currentStock, minThreshold: material.minimum_threshold });
     
     // Could trigger automatic reordering here
     // await this.triggerAutoReorder(material);
@@ -386,7 +385,7 @@ class MedicalProcedureHandler {
    * Create critical alert for high severity complications
    */
   private async createCriticalAlert(payload: any): Promise<void> {
-    console.log(`CRITICAL ALERT: High severity complication in procedure ${payload.appointmentId}`);
+    logger.error(`CRITICAL ALERT: High severity complication`, { appointmentId: payload.appointmentId });
     
     // Store in analysis reports for visibility
     await this.supabase
@@ -411,7 +410,7 @@ class MedicalProcedureHandler {
    */
   private async checkFollowUpProduction(payload: any): Promise<void> {
     // Could create follow-up production jobs based on implant placement
-    console.log(`Checking follow-up production for implant: ${payload.implantId}`);
+    logger.debug(`Checking follow-up production for implant`, { implantId: payload.implantId });
   }
 
   /**
@@ -428,7 +427,7 @@ class MedicalProcedureHandler {
       .order('started_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching active procedures:', error);
+      logger.error('Error fetching active procedures', error);
       return [];
     }
 
@@ -446,7 +445,7 @@ class MedicalProcedureHandler {
       .order('timestamp', { ascending: true });
 
     if (error) {
-      console.error('Error fetching procedure events:', error);
+      logger.error('Error fetching procedure events', error);
       return [];
     }
 
@@ -455,9 +454,11 @@ class MedicalProcedureHandler {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -471,35 +472,27 @@ serve(async (req) => {
 
     switch (event) {
       case 'process_event':
+        logger.info('Processing procedure event', { eventType: data.eventType });
         const result = await handler.processProcedureEvent(data);
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, result);
 
       case 'get_active_procedures':
+        logger.debug('Fetching active procedures');
         const procedures = await handler.getActiveProcedures();
-        return new Response(JSON.stringify({ procedures }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, { procedures });
 
       case 'get_procedure_events':
         const { appointmentId } = data;
+        logger.debug('Fetching procedure events', { appointmentId });
         const events = await handler.getProcedureEvents(appointmentId);
-        return new Response(JSON.stringify({ events }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, { events });
 
       default:
-        return new Response(JSON.stringify({ error: 'Unknown event type' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        logger.warn('Unknown event type', { event });
+        return createErrorResponse(req, 'Unknown event type', 400);
     }
   } catch (error) {
-    console.error('Error in medical-procedure-handler function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 500);
   }
 });

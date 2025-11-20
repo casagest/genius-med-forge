@@ -1,10 +1,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('VoiceToText');
 
 // Process base64 in chunks to prevent memory issues
 function processBase64Chunks(base64String: string, chunkSize = 32768) {
@@ -62,8 +61,10 @@ function validateAudioInput(data: any) {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -75,7 +76,7 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    console.log('Processing voice command...');
+    logger.info('Processing voice command');
 
     // Process audio in chunks
     const binaryAudio = processBase64Chunks(audio);
@@ -100,35 +101,26 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
+      logger.error('OpenAI API error', { status: response.status, errorText });
       throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
     }
 
     const result = await response.json();
-    console.log('Transcription result:', result);
+    logger.debug('Transcription result received', { textLength: result.text?.length });
 
     // Process medical command with context
     const transcription = result.text.toLowerCase();
     const medicalContext = await processMedicalCommand(transcription, openaiApiKey);
 
-    return new Response(
-      JSON.stringify({ 
-        text: result.text,
-        medical_context: medicalContext,
-        confidence: result.confidence || 0.95
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return createJsonResponse(req, {
+      text: result.text,
+      medical_context: medicalContext,
+      confidence: result.confidence || 0.95
+    });
 
   } catch (error) {
-    console.error('Error in voice-to-text function:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 500);
   }
 });
 
@@ -179,7 +171,7 @@ async function processMedicalCommand(transcription: string, apiKey: string) {
       }
     }
   } catch (error) {
-    console.error('Error processing medical command:', error);
+    logger.error('Error processing medical command', error);
   }
 
   return {

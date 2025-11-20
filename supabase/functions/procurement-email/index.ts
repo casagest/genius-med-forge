@@ -1,13 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
+const logger = createLogger('ProcurementEmail');
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 interface ProcurementEmailRequest {
   sku: string;
@@ -21,9 +19,11 @@ interface ProcurementEmailRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  logger.debug(`${req.method} request received`);
+
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -43,7 +43,7 @@ const handler = async (req: Request): Promise<Response> => {
       case_id 
     }: ProcurementEmailRequest = await req.json();
 
-    console.log(`📧 Processing procurement email for ${sku} to ${supplier_name}`);
+    logger.info(`Processing procurement email`, { sku, supplier_name });
 
     // Generate order ID for tracking
     const orderId = `ORD-${Date.now()}-${sku.substring(0, 4).toUpperCase()}`;
@@ -176,7 +176,7 @@ const handler = async (req: Request): Promise<Response> => {
       html: emailHtml,
     });
 
-    console.log("✅ Email sent successfully:", emailResponse);
+    logger.info("Email sent successfully", { messageId: emailResponse.data?.id, orderId });
 
     // Log the procurement action to Supabase
     const { error: logError } = await supabase
@@ -201,37 +201,19 @@ const handler = async (req: Request): Promise<Response> => {
       });
 
     if (logError) {
-      console.error("⚠️ Failed to log procurement action:", logError);
+      logger.error("Failed to log procurement action", logError);
     }
 
-    return new Response(JSON.stringify({
+    return createJsonResponse(req, {
       success: true,
       order_id: orderId,
       message_id: emailResponse.data?.id,
       email_sent_to: supplier_email
-    }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
     });
 
   } catch (error: any) {
-    console.error("❌ Error in procurement-email function:", error);
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        success: false 
-      }),
-      {
-        status: 500,
-        headers: { 
-          "Content-Type": "application/json", 
-          ...corsHeaders 
-        },
-      }
-    );
+    logger.error("Request processing failed", error);
+    return createErrorResponse(req, error, 500);
   }
 };
 

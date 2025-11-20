@@ -1,11 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('ReactiveAnalysis');
 
 interface ProactiveAlert {
   type: 'low_stock' | 'machine_bottleneck' | 'production_delay' | 'critical_shortage' | 'efficiency_drop';
@@ -101,7 +100,7 @@ class ReactiveAnalysisService {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching production jobs:', error);
+      logger.error('Error fetching production jobs', error);
       return [];
     }
 
@@ -118,7 +117,7 @@ class ReactiveAnalysisService {
       .order('material_name');
 
     if (error) {
-      console.error('Error fetching materials:', error);
+      logger.error('Error fetching materials', error);
       return [];
     }
 
@@ -428,9 +427,11 @@ class ReactiveAnalysisService {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -443,46 +444,32 @@ serve(async (req) => {
     
     // Input validation
     if (!requestBody || typeof requestBody !== 'object') {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid request body' 
-      }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      logger.warn('Invalid request body');
+      return createErrorResponse(req, 'Invalid request body', 400);
     }
 
     const { event } = requestBody;
-    
+
     // Validate event type
     if (!event || event !== 'run_analysis') {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid or missing event type. Expected: run_analysis' 
-      }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      logger.warn('Invalid or missing event type', { event });
+      return createErrorResponse(req, 'Invalid or missing event type. Expected: run_analysis', 400);
     }
 
     const analysisService = new ReactiveAnalysisService(supabaseClient);
 
     switch (event) {
       case 'run_analysis':
+        logger.info('Running reactive analysis');
         const result = await analysisService.runAnalysis();
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return createJsonResponse(req, result);
 
       default:
-        return new Response(JSON.stringify({ error: 'Unknown event type' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        logger.warn('Unknown event type', { event });
+        return createErrorResponse(req, 'Unknown event type', 400);
     }
   } catch (error) {
-    console.error('Error in reactive-analysis function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 500);
   }
 });

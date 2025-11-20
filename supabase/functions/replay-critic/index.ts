@@ -1,15 +1,16 @@
 // ReplayCritic - Post-Procedure Analysis and Learning System
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('ReplayCritic');
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -59,14 +60,13 @@ serve(async (req) => {
 
         // Trigger CEO report if significant issues found
         if (analysis.performance_score < 0.7) {
+          logger.warn('Performance score below threshold', { score: analysis.performance_score });
           await triggerCEOAlert(analysis, procedureEvent);
         }
 
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           analysis: savedAnalysis
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
@@ -98,27 +98,21 @@ serve(async (req) => {
         // Aggregate learning insights
         const aggregatedInsights = aggregateLearningPoints(insights);
 
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           insights: aggregatedInsights,
           raw_data: insights
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       default:
-        throw new Error(`Unknown event type: ${event}`);
+        logger.warn('Unknown event type', { event });
+        return createErrorResponse(req, `Unknown event type: ${event}`, 400);
     }
 
   } catch (error) {
-    console.error('ReplayCritic Error:', error);
-    return new Response(JSON.stringify({
-      error: error.message
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 400);
   }
 });
 
