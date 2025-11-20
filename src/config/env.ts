@@ -36,6 +36,11 @@ interface EnvironmentConfig {
  * Validates that required environment variables are present
  */
 function validateEnv(): void {
+  // Skip validation if import.meta is not available (e.g., in test environments)
+  if (typeof import.meta === 'undefined' || !import.meta.env) {
+    return;
+  }
+
   const required = [
     'VITE_SUPABASE_URL',
     'VITE_SUPABASE_ANON_KEY',
@@ -67,41 +72,63 @@ function parseArray(value: string | undefined, defaultValue: string[]): string[]
   return value.split(',').map(item => item.trim()).filter(Boolean);
 }
 
-// Validate environment on module load
-if (import.meta.env.MODE !== 'test') {
-  validateEnv();
+// Validate environment on module load (skip in test/CI environments)
+const isTestMode = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
+const isDevelopmentMode = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'development';
+
+if (!isTestMode) {
+  try {
+    validateEnv();
+  } catch (error) {
+    // In development, log warning but don't crash to allow graceful degradation
+    if (isDevelopmentMode) {
+      console.warn('⚠️ Environment validation warning:', error instanceof Error ? error.message : error);
+      console.warn('The application may not function correctly without proper environment variables.');
+    } else {
+      // In production, fail fast
+      throw error;
+    }
+  }
 }
 
 /**
  * Application configuration object
  * All environment variables are accessed through this centralized configuration
+ * Safe to use in test environments - provides defaults
  */
+const getEnvValue = (key: string, defaultValue: string = ''): string => {
+  if (typeof import.meta === 'undefined' || !import.meta.env) {
+    return defaultValue;
+  }
+  return import.meta.env[key] || defaultValue;
+};
+
 export const config: EnvironmentConfig = {
   supabase: {
-    url: import.meta.env.VITE_SUPABASE_URL || '',
-    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+    url: getEnvValue('VITE_SUPABASE_URL'),
+    anonKey: getEnvValue('VITE_SUPABASE_ANON_KEY'),
   },
   websocket: {
-    url: import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:3001',
-    realtimeAgentsUrl: import.meta.env.VITE_REALTIME_AGENTS_URL || '',
+    url: getEnvValue('VITE_WEBSOCKET_URL', 'ws://localhost:3001'),
+    realtimeAgentsUrl: getEnvValue('VITE_REALTIME_AGENTS_URL'),
   },
   api: {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || '',
+    baseUrl: getEnvValue('VITE_API_BASE_URL'),
   },
   app: {
-    environment: (import.meta.env.VITE_ENVIRONMENT as EnvironmentConfig['app']['environment']) || 'development',
+    environment: (getEnvValue('VITE_ENVIRONMENT', 'development') as EnvironmentConfig['app']['environment']),
   },
   features: {
-    voiceInterface: parseBoolean(import.meta.env.VITE_ENABLE_VOICE_INTERFACE, true),
-    viewer3D: parseBoolean(import.meta.env.VITE_ENABLE_3D_VIEWER, true),
-    realTimeSync: parseBoolean(import.meta.env.VITE_ENABLE_REAL_TIME_SYNC, true),
+    voiceInterface: parseBoolean(getEnvValue('VITE_ENABLE_VOICE_INTERFACE'), true),
+    viewer3D: parseBoolean(getEnvValue('VITE_ENABLE_3D_VIEWER'), true),
+    realTimeSync: parseBoolean(getEnvValue('VITE_ENABLE_REAL_TIME_SYNC'), true),
   },
   logging: {
-    level: (import.meta.env.VITE_LOG_LEVEL as EnvironmentConfig['logging']['level']) || 'info',
+    level: (getEnvValue('VITE_LOG_LEVEL', 'info') as EnvironmentConfig['logging']['level']),
   },
   security: {
     allowedOrigins: parseArray(
-      import.meta.env.VITE_ALLOWED_ORIGINS,
+      getEnvValue('VITE_ALLOWED_ORIGINS'),
       ['http://localhost:5173', 'http://localhost:8080']
     ),
   },
