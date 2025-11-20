@@ -1,11 +1,10 @@
 // AgentLab - Laboratory Production Management with Smart Material Manager
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('AgentLab');
 
 interface LabJob {
   patient_id: string;
@@ -17,8 +16,11 @@ interface LabJob {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -28,6 +30,7 @@ serve(async (req) => {
     );
 
     const { event, data } = await req.json();
+    logger.debug('Processing request', { event, data });
 
     switch (event) {
       case 'create_lab_job': {
@@ -40,12 +43,10 @@ serve(async (req) => {
         const materialCheck = await checkMaterialAvailability(supabase, jobData.material_requirements);
         
         if (!materialCheck.available) {
-          return new Response(JSON.stringify({
+          return createJsonResponse(req, {
             success: false,
             error: 'Insufficient materials',
             missing_materials: materialCheck.missing
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
 
@@ -69,11 +70,9 @@ serve(async (req) => {
         // Emit WebSocket update
         await emitLabUpdate('lab:job_created', labJob);
 
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           job: labJob
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
@@ -118,11 +117,9 @@ serve(async (req) => {
         // Emit WebSocket update
         await emitLabUpdate('lab:job_updated', updatedJob);
 
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           job: updatedJob
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
@@ -139,51 +136,39 @@ serve(async (req) => {
 
         if (error) throw error;
 
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           queue
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       case 'smart_material_reorder': {
         const reorderAlerts = await checkAndGenerateReorders(supabase);
-        
-        return new Response(JSON.stringify({
+
+        return createJsonResponse(req, {
           success: true,
           reorder_alerts: reorderAlerts
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       case 'optimize_schedule': {
         const optimizationResult = await optimizeProductionSchedule(supabase, data);
-        return new Response(JSON.stringify(optimizationResult), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return createJsonResponse(req, optimizationResult);
       }
 
       case 'auto_reorder': {
         const reorderResult = await processAutoReorder(supabase, data);
-        return new Response(JSON.stringify(reorderResult), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return createJsonResponse(req, reorderResult);
       }
 
       case 'material_usage_prediction': {
         const predictions = await predictMaterialUsage(supabase, data);
-        return new Response(JSON.stringify(predictions), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return createJsonResponse(req, predictions);
       }
 
       case 'smart_allocation': {
         const allocations = await smartMaterialAllocation(supabase, data);
-        return new Response(JSON.stringify(allocations), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return createJsonResponse(req, allocations);
       }
 
       default:
@@ -191,13 +176,8 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('AgentLab Error:', error);
-    return new Response(JSON.stringify({
-      error: error.message
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 400);
   }
 });
 
@@ -264,7 +244,7 @@ async function checkAndGenerateReorders(supabase: any) {
     .filter('current_stock', 'lte', supabase.raw('minimum_threshold'));
 
   if (error) {
-    console.error('Error fetching low stock materials:', error);
+    logger.error('Error fetching low stock materials', error);
     return [];
   }
 
@@ -288,8 +268,8 @@ async function checkAndGenerateReorders(supabase: any) {
 }
 
 async function optimizeProductionSchedule(supabase: any, data: any) {
-  console.log('Optimizing production schedule with AI')
-  
+  logger.info('Optimizing production schedule with AI');
+
   const { jobs, materials, machine_status } = data
   
   // AI-driven optimization logic
@@ -348,8 +328,8 @@ async function optimizeProductionSchedule(supabase: any, data: any) {
 }
 
 async function processAutoReorder(supabase: any, data: any) {
-  console.log('Processing auto-reorder:', data)
-  
+  logger.info('Processing auto-reorder', { data });
+
   const { material_id, quantity, urgency } = data
   
   // Get material details
@@ -387,7 +367,7 @@ async function processAutoReorder(supabase: any, data: any) {
     })
   
   if (notificationError) {
-    console.error('Error creating notification:', notificationError)
+    logger.error('Error creating notification', notificationError);
   }
   
   // Update last ordered date
@@ -412,8 +392,8 @@ async function processAutoReorder(supabase: any, data: any) {
 }
 
 async function predictMaterialUsage(supabase: any, data: any) {
-  console.log('Predicting material usage patterns')
-  
+  logger.info('Predicting material usage patterns');
+
   // Get historical usage data (simplified implementation)
   const predictions = data.materials?.map((material: any) => {
     const baseUsage = Math.random() * 10 + 5
@@ -442,8 +422,8 @@ async function predictMaterialUsage(supabase: any, data: any) {
 }
 
 async function smartMaterialAllocation(supabase: any, data: any) {
-  console.log('Performing smart material allocation')
-  
+  logger.info('Performing smart material allocation');
+
   const { production_jobs, available_materials } = data
   
   // AI logic for optimal material allocation
@@ -530,5 +510,5 @@ function calculateOptimizationScore(job: any, materials: any[], machineStatus: a
 
 async function emitLabUpdate(event: string, data: any) {
   // In a real implementation, this would use WebSocket or Supabase realtime
-  console.log(`Lab Event: ${event}`, data);
+  logger.debug(`Lab event: ${event}`, { data });
 }

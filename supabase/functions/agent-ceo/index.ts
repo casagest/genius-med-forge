@@ -1,11 +1,10 @@
 // AgentCEO - Strategic Operations with AnalysisReport Generation
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('AgentCEO');
 
 interface RiskReport {
   report_type: string;
@@ -16,15 +15,11 @@ interface RiskReport {
 }
 
 serve(async (req) => {
-  console.log(`🚀 AgentCEO: ${req.method} request received`);
-  
+  logger.debug(`${req.method} request received`);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    console.log('📋 Handling CORS preflight request');
-    return new Response(null, { 
-      status: 200,
-      headers: corsHeaders 
-    });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -33,45 +28,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('🔍 AgentCEO received request');
     const requestBody = await req.json();
-    console.log('📋 Request body:', JSON.stringify(requestBody, null, 2));
+    logger.debug('Processing request', { body: requestBody });
 
     // Handle both old and new formats
     const { event, data, action } = requestBody;
     
     // If legacy format with action (from MedicalAIInterface)
     if (action === 'strategic_analysis') {
-      console.log('📋 Legacy format: strategic_analysis');
-      
+      logger.info('Processing legacy format: strategic_analysis');
+
       try {
         const strategicData = await generateStrategicAnalysis(supabase);
-        console.log('✅ Strategic analysis generated successfully');
-        
-        return new Response(JSON.stringify(strategicData), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        logger.info('Strategic analysis generated successfully');
+
+        return createJsonResponse(req, strategicData);
       } catch (error) {
-        console.error('❌ Error in strategic analysis:', error);
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: error.message 
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        logger.error('Error in strategic analysis', error);
+        return createErrorResponse(req, error, 500);
       }
     }
 
     // If no valid action/event, return error
     if (!event && !action) {
-      console.error('❌ No valid event or action provided');
-      return new Response(JSON.stringify({ 
-        error: 'Missing event or action parameter' 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      logger.warn('No valid event or action provided');
+      return createErrorResponse(req, 'Missing event or action parameter', 400);
     }
 
     const eventType = event;
@@ -106,12 +87,10 @@ serve(async (req) => {
         // Emit to StrategicOps Panel
         await emitToStrategicOps('ceo:new_risk_report', savedReport);
 
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           report: savedReport,
           ceo_analysis: ceoAnalysis
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
@@ -140,7 +119,7 @@ serve(async (req) => {
 
         if (error) throw error;
 
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           reports,
           pagination: {
@@ -149,19 +128,15 @@ serve(async (req) => {
             total: count,
             total_pages: Math.ceil((count || 0) / limit)
           }
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       case 'operational_dashboard': {
         const dashboardData = await generateOperationalDashboard(supabase);
         
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           dashboard: dashboardData
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
@@ -198,13 +173,8 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('AgentCEO Error:', error);
-    return new Response(JSON.stringify({
-      error: error.message
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 400);
   }
 });
 
@@ -453,8 +423,8 @@ function calculateRiskTrend(riskStats: any[]) {
 }
 
 async function generateStrategicAnalysis(supabase: any) {
-  console.log('🎯 Generating strategic analysis...');
-  
+  logger.info('Generating strategic analysis');
+
   try {
     const dashboardData = await generateOperationalDashboard(supabase);
     
@@ -483,10 +453,10 @@ async function generateStrategicAnalysis(supabase: any) {
       timestamp: new Date().toISOString()
     };
   } catch (error) {
-    console.error('Error generating strategic analysis:', error);
+    logger.error('Error generating strategic analysis', error);
     return {
       success: false,
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     };
   }
@@ -494,5 +464,5 @@ async function generateStrategicAnalysis(supabase: any) {
 
 async function emitToStrategicOps(event: string, data: any) {
   // In a real implementation, this would use WebSocket or Supabase realtime
-  console.log(`CEO Event: ${event}`, data);
+  logger.debug(`Emitting CEO event: ${event}`, { data });
 }
