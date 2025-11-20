@@ -1,0 +1,162 @@
+{
+  "id": "patient-123",
+  "patient_code": "P123456",
+  "name": "Ion Popescu",
+  "birth_date": "1979-03-15",
+  "age": 45,
+  "gender": "M",
+  "phone": "0721234567",
+  "email": "ion.popescu@email.com",
+  "address": "Str. Florilor, Nr. 25, Sector 3, București",
+  "status": "ACTIVE",
+  "created_at": "2020-05-10T10:00:00.000Z",
+  "last_visit": "2024-11-15T14:30:00.000Z",
+  "next_appointment": "2024-12-01T10:00:00.000Z",
+  "medical_history": [
+    {
+      "id": "condition-1",
+      "condition": "Diabet zaharat tip 2",
+      "diagnosis_date": "2018-03-20",
+      "status": "ACTIVE",
+      "severity": "CONTROLLED",
+      "notes": "HbA1c 6.8%, sub tratament cu Metformin",
+      "treating_physician": "Dr. Popescu Ana"
+    },
+    {
+      "id": "condition-2",
+      "condition": "Hipertensiune arterială",
+      "diagnosis_date": "2019-06-15",
+      "status": "ACTIVE",
+      "severity": "CONTROLLED",
+      "notes": "TA 135/85 mmHg sub tratament",
+      "treating_physician": "Dr. Ionescu Mihai"
+    },
+    {
+      "id": "condition-3",
+      "condition": "Fractura dinte molar 36",
+      "diagnosis_date": "2024-10-05",
+      "status": "RESOLVED",
+      "severity": "MODERATE",
+      "notes": "Rezolvat prin implant dentar",
+      "treating_physician": "Dr. Georgescu Elena"
+    }
+  ],
+  "allergies": [
+    {
+      "id": "allergy-1",
+      "substance": "Penicilină",
+      "type": "MEDICATION",
+      "severity": "SEVERE",
+      "reaction": "Anafilaxie",
+      "first_occurrence": "2015-08-12",
+      "notes": "Evitare strictă, alternative: macrolide"
+    },
+    {
+      "id": "allergy-2",
+      "substance": "Latex",
+      "type": "MATERIAL",
+      "severity": "MODERATE",
+      "reaction": "Dermatită de contact",
+      "first_occurrence": "2017-02-20",
+      "notes": "Utilizare mănuși nitril"
+    },
+    {
+      "id": "allergy-3",
+      "substance": "Nichel",
+      "type": "METAL",
+      "severity": "MILD",
+      "reaction": "Iritație locală",
+      "first_occurrence": "2020-11-10",
+      "notes": "Atenție la alegere materiale dentare"
+    }
+  ],
+  "current_medications": [
+    {
+      "id": "med-1",
+      "name": "Metformin",
+      "dosage": "500mg",
+      "frequency": "2x/zi",
+      "route": "oral",
+      "started_date": "2018-03-25",
+      "prescribing_physician": "Dr. Popescu Ana",
+      "notes": "La masă"
+    },
+    {
+      "id": "med-2",
+      "name": "Enalapril",
+      "dosage": "10mg",
+      "frequency": "1x/zi",
+      "route": "oral",
+      "started_date": "2019-06-20",
+      "prescribing_physician": "Dr. Ionescu Mihai",
+      "notes": "Dimineața"
+    },
+    {
+      "id": "med-3",
+      "name": "Aspirină",
+      "dosage": "75mg",
+      "frequency": "1x/zi",
+      "route": "oral",
+      "started_date": "2020-01-15",
+      "prescribing_physician": "Dr. Ionescu Mihai",
+      "notes": "Seara, profilaxie cardiovasculară"
+    }
+  ],
+  "risk_assessment": {
+    "overall_risk_score": 0.75,
+    "risk_level": "HIGH",
+    "last_assessment_date": "2024-11-15",
+    "risk_factors": [
+      {
+        "factor": "Diabet zaharat",
+        "weight": 0.35,
+        "description": "Risc crescut infecții și vindecare întârziată"
+      },
+      {
+        "factor": "Alergii multiple",
+        "weight": 0.25,
+        "description": "Limitări în alegerea materialelor și medicamente"
+      },
+      {
+        "factor": "Vârstă și comorbidități",
+        "weight": 0.15,
+        "description": "Risc moderat cardiovascular"
+      }
+    ],
+    "recommendations": [
+      "Control glicemie pre și post-operator",
+      "Protocol antibiotic alternativ (macrolide)",
+      "Utilizare materiale hipoalergenice"
+    ]
+  },
+  "insurance": {
+    "provider": "Regina Maria",
+    "policy_number": "RM-123456789",
+    "coverage_type": "PREMIUM",
+    "valid_until": "2025-12-31",
+    "dental_coverage": true,
+    "max_annual_coverage": 5000
+  },
+  "emergency_contact": {
+    "name": "Maria Popescu",
+    "relationship": "Soție",
+    "phone": "0721234999",
+    "email": "maria.popescu@email.com"
+  },
+  "notes": [
+    {
+      "id": "note-1",
+      "date": "2024-11-15",
+      "author": "Dr. Georgescu Elena",
+      "type": "CLINICAL",
+      "content": "Pacient prezintă îmbunătățire după implantul dentar. Vindecare conform așteptărilor. Control la 1 lună."
+    },
+    {
+      "id": "note-2",
+      "date": "2024-10-20",
+      "author": "Asist. Med. Pop Ana",
+      "type": "ADMINISTRATIVE",
+      "content": "Pacient solicită programare pentru control. Preferă dimineața între 9-11."
+    }
+  ]
+}

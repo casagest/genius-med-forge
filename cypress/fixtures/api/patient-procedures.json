@@ -1,0 +1,115 @@
+[
+  {
+    "id": "proc-patient-123-1",
+    "patient_id": "patient-123",
+    "procedure_type": "Implant dentar",
+    "tooth_number": "36",
+    "date": "2024-10-15T10:00:00.000Z",
+    "status": "COMPLETED",
+    "duration_minutes": 90,
+    "physician": "Dr. Georgescu Elena",
+    "assistant": "Asist. Med. Pop Ana",
+    "room": "Sala 1",
+    "materials_used": [
+      {
+        "material": "Implant titan",
+        "quantity": 1,
+        "lot_number": "LOT-2024-145"
+      },
+      {
+        "material": "Grefă osoasă",
+        "quantity": 2,
+        "lot_number": "LOT-2024-156"
+      }
+    ],
+    "complications": null,
+    "notes": "Procedură fără complicații. Pacient tolerat bine. Prescripție: Augmentin alternativ (macrolid) pentru 7 zile.",
+    "follow_up_date": "2024-11-15T14:00:00.000Z",
+    "cost": 2500,
+    "insurance_covered": 1500
+  },
+  {
+    "id": "proc-patient-123-2",
+    "patient_id": "patient-123",
+    "procedure_type": "Control post-operator",
+    "tooth_number": "36",
+    "date": "2024-11-15T14:30:00.000Z",
+    "status": "COMPLETED",
+    "duration_minutes": 30,
+    "physician": "Dr. Georgescu Elena",
+    "assistant": null,
+    "room": "Cabinet 2",
+    "materials_used": [],
+    "complications": null,
+    "notes": "Vindecare conform așteptărilor. Implant bine integrat. Fără semne de infecție. Control la 1 lună.",
+    "follow_up_date": "2024-12-15T14:00:00.000Z",
+    "cost": 150,
+    "insurance_covered": 150
+  },
+  {
+    "id": "proc-patient-123-3",
+    "patient_id": "patient-123",
+    "procedure_type": "Detartraj și air-flow",
+    "tooth_number": "ALL",
+    "date": "2024-09-05T09:00:00.000Z",
+    "status": "COMPLETED",
+    "duration_minutes": 45,
+    "physician": "Ig. Dentară Marin Ioana",
+    "assistant": null,
+    "room": "Cabinet 3",
+    "materials_used": [
+      {
+        "material": "Pastă profilaxie",
+        "quantity": 1,
+        "lot_number": "LOT-2024-200"
+      }
+    ],
+    "complications": null,
+    "notes": "Igienă orală bună. Recomandat control la 6 luni.",
+    "follow_up_date": "2025-03-05T09:00:00.000Z",
+    "cost": 300,
+    "insurance_covered": 300
+  },
+  {
+    "id": "proc-patient-123-4",
+    "patient_id": "patient-123",
+    "procedure_type": "Consultație inițială implant",
+    "tooth_number": "36",
+    "date": "2024-09-25T11:00:00.000Z",
+    "status": "COMPLETED",
+    "duration_minutes": 60,
+    "physician": "Dr. Georgescu Elena",
+    "assistant": null,
+    "room": "Cabinet 1",
+    "materials_used": [],
+    "complications": null,
+    "notes": "Evaluare clinică și radiologică. Indicat implant cu grefă osoasă. Pacient informat despre procedură, riscuri și costuri. Teste alergice programate.",
+    "follow_up_date": "2024-10-15T10:00:00.000Z",
+    "cost": 200,
+    "insurance_covered": 100
+  },
+  {
+    "id": "proc-patient-123-5",
+    "patient_id": "patient-123",
+    "procedure_type": "Plombă compozit",
+    "tooth_number": "16",
+    "date": "2024-06-10T10:30:00.000Z",
+    "status": "COMPLETED",
+    "duration_minutes": 40,
+    "physician": "Dr. Ionescu Mihai",
+    "assistant": "Asist. Med. Radu Maria",
+    "room": "Cabinet 2",
+    "materials_used": [
+      {
+        "material": "Compozit fotopolimerizabil",
+        "quantity": 1,
+        "lot_number": "LOT-2024-080"
+      }
+    ],
+    "complications": null,
+    "notes": "Carie medie pe fața ocluzală. Plombare directă. Pacient fără dureri post-operator.",
+    "follow_up_date": null,
+    "cost": 250,
+    "insurance_covered": 250
+  }
+]

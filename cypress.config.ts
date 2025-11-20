@@ -25,8 +25,8 @@ export default defineConfig({
     },
   },
   env: {
-    SUPABASE_URL: 'https://sosiozakhzrnapvxrtrb.supabase.co',
-    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvc2lvemFraHpybmFwdnhydHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NzY4NTgsImV4cCI6MjA2OTU1Mjg1OH0.IawV0L49n590JCMDZ1Fy9KzcxMKRb6HHyudanZBQRP0'
+    SUPABASE_URL: process.env.VITE_SUPABASE_URL || '',
+    SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || ''
   },
   component: {
     devServer: {

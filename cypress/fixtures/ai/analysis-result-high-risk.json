@@ -1,0 +1,128 @@
+{
+  "risk_score": 0.85,
+  "risk_level": "HIGH",
+  "risk_factors": [
+    {
+      "factor": "Istoric medical complex",
+      "weight": 0.35,
+      "description": "Pacient cu diabet zaharat tip 2 necontrolat",
+      "detailed_explanation": "Diabetul zaharat tip 2 crește semnificativ riscul de complicații post-operatorii, incluzând infecții, vindecare întârziată, și complicații vasculare. Glicemia crescută afectează sistemul imunitar și procesele de vindecare.",
+      "mitigation_strategies": [
+        "Stabilizare glicemie cu minim 2 săptămâni înainte de intervenție",
+        "HbA1c < 7% înainte de procedură",
+        "Monitorizare glicemie pre și post-operator 24/48h"
+      ]
+    },
+    {
+      "factor": "Complexitate procedură",
+      "weight": 0.30,
+      "description": "Implant dentar cu necesitate de grefă osoasă",
+      "detailed_explanation": "Procedurile complexe de implantologie cu grefă osoasă au rate mai ridicate de complicații și necesită condiții optime pentru succes. Grefa osoasă necesită vascularizare adecvată și absență de infecții.",
+      "mitigation_strategies": [
+        "Evaluare imagistică 3D (CBCT) detaliată",
+        "Protocol antibiotic profilactic extins",
+        "Follow-up la 1, 2, 4 săptămâni post-operator"
+      ]
+    },
+    {
+      "factor": "Alergii multiple",
+      "weight": 0.20,
+      "description": "Istoric de alergii la penicilină, latex, și metale",
+      "detailed_explanation": "Alergiile multiple cresc complexitatea managementului anestezic și alegerii materialelor. Reacțiile alergice pot varia de la iritații locale la șoc anafilactic.",
+      "mitigation_strategies": [
+        "Teste alergologice pentru materiale implant (titan, zirconiu)",
+        "Protocol antibiotic alternativ (macrolide/chinolone)",
+        "Materiale fără latex, mănuși nitril",
+        "Medicamente antihistaminice pre-operator"
+      ]
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "CRITICAL",
+      "recommendation": "Consultație pre-operatorie extinsă cu endocrinolog",
+      "rationale": "Stabilizarea diabetului este esențială pentru succesul procedurii",
+      "timeline": "Cu 2-4 săptămâni înainte de procedură",
+      "estimated_impact": "Reduce riscul cu 35%"
+    },
+    {
+      "priority": "HIGH",
+      "recommendation": "Teste alergologice complete pentru materiale dentare",
+      "rationale": "Identificarea materialelor sigure este critică",
+      "timeline": "Cu 1-2 săptămâni înainte de procedură",
+      "estimated_impact": "Reduce riscul cu 20%"
+    },
+    {
+      "priority": "HIGH",
+      "recommendation": "Protocol antibiotic profilactic modificat",
+      "rationale": "Pacienții diabetici necesită acoperire antibiotică extinsă",
+      "timeline": "Cu 1 zi înainte până la 5-7 zile post-operator",
+      "estimated_impact": "Reduce riscul infecții cu 40%"
+    },
+    {
+      "priority": "MEDIUM",
+      "recommendation": "Monitorizare glicemie 24h pre și post-operator",
+      "rationale": "Controlul glicemiei influențează direct vindecare",
+      "timeline": "24h pre-operator și 48h post-operator",
+      "estimated_impact": "Reduce riscul complicații cu 25%"
+    },
+    {
+      "priority": "MEDIUM",
+      "recommendation": "Evaluare imagistică 3D (CBCT) pentru planificare chirurgicală",
+      "rationale": "Planificarea detaliată reduce timpul operator și complicațiile",
+      "timeline": "Cu 1 săptămână înainte de procedură",
+      "estimated_impact": "Îmbunătățește succes cu 30%"
+    }
+  ],
+  "confidence": 0.92,
+  "processing_time_ms": 245,
+  "model_version": "genius-medical-ai-v2.3.1",
+  "prediction_metadata": {
+    "features_analyzed": 47,
+    "data_completeness": 0.89,
+    "similar_cases_in_training": 234,
+    "model_update_date": "2024-11-15"
+  },
+  "alternative_scenarios": [
+    {
+      "scenario": "Dacă diabetul este controlat (HbA1c < 6.5%)",
+      "adjusted_risk_score": 0.65,
+      "risk_level": "MEDIUM"
+    },
+    {
+      "scenario": "Dacă se amână procedura cu 3 luni pentru stabilizare",
+      "adjusted_risk_score": 0.55,
+      "risk_level": "MEDIUM"
+    },
+    {
+      "scenario": "Dacă se folosește implant din zirconiu în loc de titan",
+      "adjusted_risk_score": 0.78,
+      "risk_level": "HIGH"
+    }
+  ],
+  "clinical_guidelines_referenced": [
+    "ADA Guidelines for Dental Management of Diabetic Patients 2023",
+    "ITI Consensus Report on Implant Placement in Compromised Patients",
+    "European Guidelines on Perioperative Antibiotic Prophylaxis 2024"
+  ],
+  "action_items": [
+    {
+      "action": "Programare consultație endocrinolog",
+      "responsible": "Asistentă medicală",
+      "deadline": "În 3 zile lucrătoare",
+      "status": "PENDING"
+    },
+    {
+      "action": "Programare teste alergologice",
+      "responsible": "Asistentă medicală",
+      "deadline": "În 5 zile lucrătoare",
+      "status": "PENDING"
+    },
+    {
+      "action": "Solicitare CBCT",
+      "responsible": "Medic stomatolog",
+      "deadline": "În 7 zile lucrătoare",
+      "status": "PENDING"
+    }
+  ]
+}

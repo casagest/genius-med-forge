@@ -1,0 +1,109 @@
+[
+  {
+    "id": "proc-001",
+    "case_id": "case-001",
+    "appointment_id": "appt-123",
+    "patient_code": "P123456",
+    "patient_name": "Ion Popescu",
+    "procedure_type": "Implant dentar",
+    "status": "IN_PROGRESS",
+    "priority": "HIGH",
+    "start_time": "2024-11-20T10:00:00.000Z",
+    "estimated_duration_minutes": 90,
+    "estimated_end_time": "2024-11-20T11:30:00.000Z",
+    "assigned_medic": "Dr. Maria Popescu",
+    "assigned_room": "Sala 1",
+    "materials_allocated": [
+      {
+        "material_id": "mat-001",
+        "material_name": "Implant titan",
+        "quantity": 1,
+        "lot_number": "LOT-2024-001"
+      },
+      {
+        "material_id": "mat-002",
+        "material_name": "Grefă osoasă",
+        "quantity": 2,
+        "lot_number": "LOT-2024-015"
+      }
+    ],
+    "events": [
+      {
+        "event_type": "procedure_started",
+        "timestamp": "2024-11-20T10:00:00.000Z",
+        "notes": "Procedură începută la timp"
+      },
+      {
+        "event_type": "material_request",
+        "timestamp": "2024-11-20T10:15:00.000Z",
+        "notes": "Materiale alocate cu succes"
+      }
+    ],
+    "risk_score": 0.85,
+    "action_items": [
+      "Monitorizare constantă glicemie",
+      "Atenție la alergii"
+    ]
+  },
+  {
+    "id": "proc-002",
+    "case_id": "case-002",
+    "appointment_id": "appt-456",
+    "patient_code": "P789012",
+    "patient_name": "Maria Ionescu",
+    "procedure_type": "Extracție molari de minte",
+    "status": "SCHEDULED",
+    "priority": "MEDIUM",
+    "start_time": "2024-11-20T14:00:00.000Z",
+    "estimated_duration_minutes": 45,
+    "estimated_end_time": "2024-11-20T14:45:00.000Z",
+    "assigned_medic": "Dr. Andrei Ionescu",
+    "assigned_room": "Sala 2",
+    "materials_allocated": [],
+    "events": [],
+    "risk_score": 0.45,
+    "action_items": [
+      "Verificare INR pre-operator",
+      "Consultație cardiolog confirmare"
+    ]
+  },
+  {
+    "id": "proc-003",
+    "case_id": "case-003",
+    "appointment_id": "appt-789",
+    "patient_code": "P345678",
+    "patient_name": "Andrei Georgescu",
+    "procedure_type": "Igienizare profesională",
+    "status": "COMPLETED",
+    "priority": "LOW",
+    "start_time": "2024-11-20T08:00:00.000Z",
+    "estimated_duration_minutes": 30,
+    "estimated_end_time": "2024-11-20T08:30:00.000Z",
+    "actual_end_time": "2024-11-20T08:28:00.000Z",
+    "assigned_medic": "Dr. Elena Popa",
+    "assigned_room": "Sala 3",
+    "materials_allocated": [
+      {
+        "material_id": "mat-010",
+        "material_name": "Pastă profilaxie",
+        "quantity": 1,
+        "lot_number": "LOT-2024-020"
+      }
+    ],
+    "events": [
+      {
+        "event_type": "procedure_started",
+        "timestamp": "2024-11-20T08:00:00.000Z",
+        "notes": "Procedură începută"
+      },
+      {
+        "event_type": "procedure_completed",
+        "timestamp": "2024-11-20T08:28:00.000Z",
+        "notes": "Procedură finalizată cu succes, pacient informat"
+      }
+    ],
+    "risk_score": 0.15,
+    "action_items": [],
+    "completion_notes": "Pacient mulțumit, fără complicații"
+  }
+]

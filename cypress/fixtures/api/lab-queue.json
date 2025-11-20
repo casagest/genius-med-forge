@@ -1,0 +1,154 @@
+[
+  {
+    "id": "job-001",
+    "case_id": "case-001",
+    "job_type": "STERILIZARE_INSTRUMENTE",
+    "priority": "HIGH",
+    "status": "PENDING",
+    "created_at": "2024-11-20T09:45:00.000Z",
+    "due_time": "2024-11-20T10:00:00.000Z",
+    "estimated_duration_minutes": 45,
+    "patient_code": "P123456",
+    "procedure_type": "Implant dentar",
+    "assigned_room": "Sala 1",
+    "instruments": [
+      "Set implantologie complet",
+      "Motoare dentare",
+      "Freze chirurgicale"
+    ],
+    "special_requirements": [
+      "Sterilizare clasă A",
+      "Verificare indicatori biologici"
+    ],
+    "notes": "Urgent pentru procedură programată la 10:00"
+  },
+  {
+    "id": "job-002",
+    "case_id": "case-004",
+    "job_type": "PREPARARE_PROTEZE",
+    "priority": "MEDIUM",
+    "status": "IN_PROGRESS",
+    "created_at": "2024-11-19T15:00:00.000Z",
+    "due_time": "2024-11-21T10:00:00.000Z",
+    "estimated_duration_minutes": 180,
+    "started_at": "2024-11-20T08:00:00.000Z",
+    "patient_code": "P567890",
+    "procedure_type": "Proteze dentare fixe",
+    "technician_assigned": "Ionescu Mihai",
+    "materials_used": [
+      {
+        "material_id": "mat-020",
+        "material_name": "Rășină acrili",
+        "quantity_used": 50,
+        "unit": "g"
+      },
+      {
+        "material_id": "mat-021",
+        "material_name": "Dinți sintetici",
+        "quantity_used": 14,
+        "unit": "buc"
+      }
+    ],
+    "progress_percentage": 60,
+    "quality_checks": [
+      {
+        "check_type": "Dimensiuni",
+        "status": "PASSED",
+        "checked_at": "2024-11-20T09:00:00.000Z"
+      },
+      {
+        "check_type": "Culoare",
+        "status": "PASSED",
+        "checked_at": "2024-11-20T09:15:00.000Z"
+      }
+    ],
+    "notes": "Progres conform planificării"
+  },
+  {
+    "id": "job-003",
+    "case_id": "case-002",
+    "job_type": "STERILIZARE_INSTRUMENTE",
+    "priority": "MEDIUM",
+    "status": "PENDING",
+    "created_at": "2024-11-20T10:00:00.000Z",
+    "due_time": "2024-11-20T14:00:00.000Z",
+    "estimated_duration_minutes": 45,
+    "patient_code": "P789012",
+    "procedure_type": "Extracție molari de minte",
+    "assigned_room": "Sala 2",
+    "instruments": [
+        "Set chirurgie orală",
+      "Pensete extractoare",
+      "Elevator dentar"
+    ],
+    "special_requirements": [
+      "Sterilizare standard"
+    ],
+    "notes": "Pentru procedură programată la 14:00"
+  },
+  {
+    "id": "job-004",
+    "case_id": "case-005",
+    "job_type": "MENTENANȚĂ_ECHIPAMENT",
+    "priority": "LOW",
+    "status": "SCHEDULED",
+    "created_at": "2024-11-19T12:00:00.000Z",
+    "due_time": "2024-11-22T08:00:00.000Z",
+    "estimated_duration_minutes": 120,
+    "equipment_id": "eq-001",
+    "equipment_name": "Autoclav principal",
+    "maintenance_type": "Mentenanță preventivă trimestrială",
+    "last_maintenance": "2024-08-20T08:00:00.000Z",
+    "checklist": [
+      "Verificare presiune",
+      "Test ciclu sterilizare",
+      "Calibrare termometre",
+      "Verificare valve siguranță",
+      "Curățare filtru aer"
+    ],
+    "parts_needed": [
+      {
+        "part_id": "part-001",
+        "part_name": "Garnitură ușă",
+        "quantity": 1,
+        "in_stock": true
+      }
+    ],
+    "notes": "Mentenanță programată, neurgentă"
+  },
+  {
+    "id": "job-005",
+    "case_id": "case-003",
+    "job_type": "STERILIZARE_INSTRUMENTE",
+    "priority": "LOW",
+    "status": "COMPLETED",
+    "created_at": "2024-11-20T07:00:00.000Z",
+    "due_time": "2024-11-20T08:00:00.000Z",
+    "estimated_duration_minutes": 45,
+    "started_at": "2024-11-20T07:15:00.000Z",
+    "completed_at": "2024-11-20T07:55:00.000Z",
+    "actual_duration_minutes": 40,
+    "patient_code": "P345678",
+    "procedure_type": "Igienizare profesională",
+    "assigned_room": "Sala 3",
+    "instruments": [
+      "Set igienizare",
+      "Scaler ultrasonic",
+      "Periuțe profilaxie"
+    ],
+    "quality_checks": [
+      {
+        "check_type": "Indicator chimic",
+        "status": "PASSED",
+        "checked_at": "2024-11-20T07:55:00.000Z"
+      },
+      {
+        "check_type": "Indicator biologic",
+        "status": "PASSED",
+        "checked_at": "2024-11-20T07:56:00.000Z"
+      }
+    ],
+    "completed_by": "Popescu Ana",
+    "notes": "Sterilizare finalizată cu succes, toate testele OK"
+  }
+]

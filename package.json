@@ -12,7 +12,16 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "cypress:run:chrome": "cypress run --browser chrome",
+    "cypress:run:firefox": "cypress run --browser firefox",
+    "cypress:run:edge": "cypress run --browser edge",
+    "test:e2e": "cypress run",
+    "test:e2e:chrome": "cypress run --browser chrome",
+    "test:e2e:headed": "cypress run --headed",
+    "test:e2e:specific": "cypress run --spec"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
