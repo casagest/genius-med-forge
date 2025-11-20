@@ -34,13 +34,13 @@ describe('PatientRepository', () => {
   let repository: PatientRepository;
   let mockSupabase: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset mocks before each test
     vi.clearAllMocks();
 
     // Import the mocked supabase
-    const { supabase } = require('@/integrations/supabase/client');
-    mockSupabase = supabase;
+    const clientModule = await import('@/integrations/supabase/client');
+    mockSupabase = clientModule.supabase;
 
     // Create repository instance
     repository = new PatientRepository();

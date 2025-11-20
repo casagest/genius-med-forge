@@ -34,10 +34,10 @@ describe('MaterialRepository', () => {
   let repository: MaterialRepository;
   let mockSupabase: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    const { supabase } = require('@/integrations/supabase/client');
-    mockSupabase = supabase;
+    const clientModule = await import('@/integrations/supabase/client');
+    mockSupabase = clientModule.supabase;
     repository = new MaterialRepository();
   });
 
