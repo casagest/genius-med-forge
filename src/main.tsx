@@ -1,5 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+import './utils/performanceMonitor'; // Initialize performance monitoring
+import './utils/errorTracking'; // Initialize error tracking
 
 createRoot(document.getElementById("root")!).render(<App />);
