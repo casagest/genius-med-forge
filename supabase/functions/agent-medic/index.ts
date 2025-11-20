@@ -1,11 +1,10 @@
 // AgentMedic - Medical AI Agent with Real-time WebSocket
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCorsPreflightRequest, createJsonResponse, createErrorResponse } from "../_shared/cors.ts";
+import { createLogger } from "../_shared/logger.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const logger = createLogger('AgentMedic');
 
 interface ProcedureEvent {
   patient_id: string;
@@ -19,8 +18,11 @@ interface ProcedureEvent {
 }
 
 serve(async (req) => {
+  logger.debug(`${req.method} request received`);
+
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightRequest(req);
   }
 
   try {
@@ -29,39 +31,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('🔍 Received request body:', JSON.stringify(await req.clone().json(), null, 2));
     const requestBody = await req.json();
-    console.log('📋 Processing request:', requestBody);
+    logger.debug('Processing request', { body: requestBody });
 
     // Handle both old and new formats
     const { event, data, patientData, analysisType } = requestBody;
     
     // If new format with event/data
     if (event && data) {
-      console.log('📋 New format detected:', event);
+      logger.info('New format detected', { event });
       const eventToProcess = event;
       const dataToProcess = data;
-      
+
       if (eventToProcess === 'get_procedure_recommendations') {
         const recommendations = await generateMedicalRecommendations(
           dataToProcess.patientData || dataToProcess,
           dataToProcess.analysisType || 'comprehensive'
         );
-        
-        return new Response(JSON.stringify(recommendations), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+
+        return createJsonResponse(req, recommendations);
       }
     }
-    
+
     // If old format with direct patientData
     if (patientData) {
-      console.log('📋 Legacy format detected');
+      logger.info('Legacy format detected');
       const recommendations = await generateMedicalRecommendations(patientData, analysisType || 'comprehensive');
-      
-      return new Response(JSON.stringify(recommendations), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+
+      return createJsonResponse(req, recommendations);
     }
 
     const { event: eventType, data: eventData } = requestBody;
@@ -102,25 +99,21 @@ serve(async (req) => {
           });
         }
 
-        return new Response(JSON.stringify({
+        return createJsonResponse(req, {
           success: true,
           event_id: savedEvent.id,
           ai_analysis: aiAnalysis
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       case 'get_procedure_recommendations': {
         const { patient_id, procedure_type } = data;
-        
+
         const recommendations = await generateMedicalRecommendations(patient_id, procedure_type);
-        
-        return new Response(JSON.stringify({
+
+        return createJsonResponse(req, {
           success: true,
           recommendations
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
@@ -129,13 +122,8 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('AgentMedic Error:', error);
-    return new Response(JSON.stringify({
-      error: error.message
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    logger.error('Request processing failed', error);
+    return createErrorResponse(req, error, 400);
   }
 });
 
