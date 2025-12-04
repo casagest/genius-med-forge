@@ -1,8 +1,26 @@
+import { Suspense, lazy } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { StrategicOpsPanel } from '@/components/StrategicOpsPanel';
-import { SmartLabCockpit } from '@/components/SmartLabCockpit';
-import { MedicCockpit } from '@/components/MedicCockpit';
-import { MedicalAIInterface } from '@/components/MedicalAIInterface';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Lazy load heavy components for code splitting
+const StrategicOpsPanel = lazy(() => import('@/components/StrategicOpsPanel').then(m => ({ default: m.StrategicOpsPanel })));
+const SmartLabCockpit = lazy(() => import('@/components/SmartLabCockpit').then(m => ({ default: m.SmartLabCockpit })));
+const MedicCockpit = lazy(() => import('@/components/MedicCockpit').then(m => ({ default: m.MedicCockpit })));
+const MedicalAIInterface = lazy(() => import('@/components/MedicalAIInterface').then(m => ({ default: m.MedicalAIInterface })));
+
+// Loading fallback component
+const TabLoadingFallback = () => (
+  <div className="p-6 space-y-4">
+    <Skeleton className="h-8 w-64" />
+    <Skeleton className="h-4 w-full" />
+    <Skeleton className="h-4 w-3/4" />
+    <div className="grid grid-cols-3 gap-4 mt-6">
+      <Skeleton className="h-32" />
+      <Skeleton className="h-32" />
+      <Skeleton className="h-32" />
+    </div>
+  </div>
+);
 
 const Index = () => {
   return (
@@ -22,19 +40,27 @@ const Index = () => {
         </TabsList>
         
         <TabsContent value="ai" className="mt-0">
-          <MedicalAIInterface />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <MedicalAIInterface />
+          </Suspense>
         </TabsContent>
-        
+
         <TabsContent value="strategic" className="mt-0">
-          <StrategicOpsPanel />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <StrategicOpsPanel />
+          </Suspense>
         </TabsContent>
-        
+
         <TabsContent value="smartlab" className="mt-0">
-          <SmartLabCockpit />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <SmartLabCockpit />
+          </Suspense>
         </TabsContent>
-        
+
         <TabsContent value="cockpit" className="mt-0">
-          <MedicCockpit />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <MedicCockpit />
+          </Suspense>
         </TabsContent>
       </Tabs>
     </div>

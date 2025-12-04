@@ -1,11 +1,13 @@
 import { supabase } from '@/integrations/supabase/client';
 import { MedicProcedureUpdatePayload } from '../types/medical-events';
+import { procedureEventRepository, analysisReportRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 interface ProcedureEventData {
   case_id: string;
   appointment_id: string;
   event_type: string;
-  event_data: any;
+  event_data: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -18,14 +20,14 @@ class EventLoggerService {
 
   private async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    
-    console.log('🎬 EventLoggerService: Initializing procedure event logging...');
-    
+
+    logger.info('EventLoggerService: Initializing procedure event logging...');
+
     // Subscribe to real-time procedure events from Supabase
     this.subscribeToRealTimeEvents();
-    
+
     this.isInitialized = true;
-    console.log('✅ EventLoggerService: Ready to capture procedure events');
+    logger.info('EventLoggerService: Ready to capture procedure events');
   }
 
   /**
@@ -33,34 +35,32 @@ class EventLoggerService {
    */
   public async logProcedureEvent(eventData: MedicProcedureUpdatePayload): Promise<void> {
     try {
-      const logEntry: ProcedureEventData = {
-        case_id: eventData.caseId,
-        appointment_id: eventData.caseId, // Using caseId as fallback
-        event_type: eventData.eventType,
-        event_data: {
+      const eventSpecificData = await this.extractEventSpecificData(eventData);
+      const sequenceNumber = await this.getNextSequenceNumber(eventData.caseId);
+
+      const result = await procedureEventRepository.logEvent(
+        eventData.caseId,
+        eventData.caseId, // Using caseId as fallback for appointment_id
+        eventData.eventType,
+        {
           timestamp: eventData.timestamp,
           patient_id: eventData.patientId,
-          event_specific_data: await this.extractEventSpecificData(eventData),
+          event_specific_data: eventSpecificData,
           metadata: {
             source: 'medic_interface',
             logged_at: new Date().toISOString(),
-            event_sequence_number: await this.getNextSequenceNumber(eventData.caseId)
+            event_sequence_number: sequenceNumber
           }
         },
-        timestamp: eventData.timestamp
-      };
+        eventData.patientId
+      );
 
-      // Insert into procedure_events table
-      const { error } = await supabase
-        .from('procedure_events')
-        .insert(logEntry);
-
-      if (error) {
-        console.error('❌ Failed to log procedure event:', error);
-        throw error;
+      if (!result.success) {
+        logger.error('Failed to log procedure event', { error: result.error });
+        throw new Error(result.error);
       }
 
-      console.log(`📝 Logged event: ${eventData.eventType} for case ${eventData.caseId}`);
+      logger.info('Logged event', { eventType: eventData.eventType, caseId: eventData.caseId });
 
       // Check if this is an end_surgery event to trigger ReplayCritic
       if (eventData.eventType === 'end_surgery') {
@@ -68,8 +68,8 @@ class EventLoggerService {
       }
 
     } catch (error) {
-      console.error('❌ EventLoggerService error:', error);
-      
+      logger.error('EventLoggerService error', error);
+
       // Log the error for monitoring
       await this.logSystemError(eventData, error);
     }
@@ -171,48 +171,38 @@ class EventLoggerService {
    * Get the next sequence number for events in this case
    */
   private async getNextSequenceNumber(caseId: string): Promise<number> {
-    try {
-      const { count, error } = await supabase
-        .from('procedure_events')
-        .select('*', { count: 'exact', head: true })
-        .eq('case_id', caseId);
+    const result = await procedureEventRepository.countByCaseId(caseId);
 
-      if (error) {
-        console.warn('Failed to get sequence number, defaulting to 0');
-        return 0;
-      }
-
-      return (count || 0) + 1;
-    } catch (error) {
-      console.warn('Error getting sequence number:', error);
+    if (!result.success) {
+      logger.warn('Failed to get sequence number, defaulting to 0');
       return 0;
     }
+
+    return (result.data || 0) + 1;
   }
 
   /**
    * Calculate total procedure duration
    */
   private async calculateProcedureDuration(caseId: string): Promise<number | null> {
-    try {
-      const { data, error } = await supabase
-        .from('procedure_events')
-        .select('timestamp, event_type')
-        .eq('case_id', caseId)
-        .in('event_type', ['start_surgery', 'end_surgery'])
-        .order('timestamp', { ascending: true });
+    const result = await procedureEventRepository.getTimeline(caseId);
 
-      if (error || !data || data.length < 2) {
-        return null;
-      }
-
-      const startTime = new Date(data[0].timestamp).getTime();
-      const endTime = new Date(data[data.length - 1].timestamp).getTime();
-      
-      return Math.round((endTime - startTime) / (1000 * 60)); // Duration in minutes
-    } catch (error) {
-      console.error('Error calculating procedure duration:', error);
+    if (!result.success || !result.data || result.data.length < 2) {
       return null;
     }
+
+    const surgeryEvents = result.data.filter(e =>
+      e.event_type === 'start_surgery' || e.event_type === 'end_surgery'
+    );
+
+    if (surgeryEvents.length < 2) {
+      return null;
+    }
+
+    const startTime = new Date(surgeryEvents[0].timestamp).getTime();
+    const endTime = new Date(surgeryEvents[surgeryEvents.length - 1].timestamp).getTime();
+
+    return Math.round((endTime - startTime) / (1000 * 60)); // Duration in minutes
   }
 
   /**
@@ -229,13 +219,13 @@ class EventLoggerService {
           table: 'procedure_events'
         },
         (payload) => {
-          console.log('📡 Real-time event captured:', payload.new);
+          logger.debug('Real-time event captured', { event: payload.new });
           this.broadcastLiveUpdate(payload.new as ProcedureEventData);
         }
       )
       .subscribe();
 
-    console.log('📡 Subscribed to real-time procedure events');
+    logger.info('Subscribed to real-time procedure events');
   }
 
   /**
@@ -243,8 +233,8 @@ class EventLoggerService {
    */
   private async broadcastLiveUpdate(eventData: ProcedureEventData): Promise<void> {
     // In a real implementation, this would use WebSocket to broadcast to connected clients
-    console.log(`📺 Broadcasting live update for case ${eventData.case_id}: ${eventData.event_type}`);
-    
+    logger.debug('Broadcasting live update', { caseId: eventData.case_id, eventType: eventData.event_type });
+
     // Here we would emit to different rooms based on the event type
     // io.to('ceo_room').emit('procedure:live_update', eventData);
     // io.to('lab_room').emit('procedure:live_update', eventData);
@@ -255,30 +245,28 @@ class EventLoggerService {
    */
   private async triggerReplayCriticAnalysis(caseId: string): Promise<void> {
     try {
-      console.log(`🎭 Triggering ReplayCritic analysis for case ${caseId}`);
+      logger.info('Triggering ReplayCritic analysis', { caseId });
 
       // Get all events for this case
-      const { data: events, error } = await supabase
-        .from('procedure_events')
-        .select('*')
-        .eq('case_id', caseId)
-        .order('timestamp', { ascending: true });
+      const eventsResult = await procedureEventRepository.findByCaseId(caseId);
 
-      if (error) {
-        throw error;
+      if (!eventsResult.success) {
+        throw new Error(eventsResult.error);
       }
+
+      const events = eventsResult.data || [];
 
       // Create analysis request
       const analysisRequest = {
         case_id: caseId,
         analysis_type: 'REPLAY_CRITIC_FULL',
         request_timestamp: new Date().toISOString(),
-        events_count: events?.length || 0,
+        events_count: events.length,
         priority: 'NORMAL'
       };
 
       // Log the analysis request
-      await supabase.from('analysis_reports').insert({
+      await analysisReportRepository.create({
         report_type: 'REPLAY_CRITIC_REQUESTED',
         risk_level: 'LOW',
         confidence_score: 1.0,
@@ -287,29 +275,30 @@ class EventLoggerService {
       });
 
       // In production, this would trigger the ReplayCritic AI service
-      console.log(`✅ ReplayCritic analysis queued for case ${caseId} with ${events?.length || 0} events`);
+      logger.info('ReplayCritic analysis queued', { caseId, eventsCount: events.length });
 
       // Simulate calling ReplayCritic service
-      await this.callReplayCriticService(caseId, events || []);
+      await this.callReplayCriticService(caseId, events);
 
     } catch (error) {
-      console.error(`❌ Failed to trigger ReplayCritic analysis for case ${caseId}:`, error);
+      logger.error('Failed to trigger ReplayCritic analysis', { caseId, error });
     }
   }
 
   /**
    * Call the ReplayCritic AI service (simulated)
    */
-  private async callReplayCriticService(caseId: string, events: any[]): Promise<void> {
+  private async callReplayCriticService(caseId: string, events: unknown[]): Promise<void> {
     try {
       // In production, this would call the actual ReplayCritic AI service
       // For now, we simulate the analysis
-      
+
+      const typedEvents = events as Array<{ event_type: string }>;
       const mockAnalysisResult = {
         case_id: caseId,
         overall_score: 92.5,
         analysis_summary: 'Procedure executed within optimal parameters',
-        critical_moments: events.filter(e => e.event_type === 'implant_placed').length,
+        critical_moments: typedEvents.filter(e => e.event_type === 'implant_placed').length,
         recommendations: [
           'Consider optimizing implant placement sequence',
           'Excellent scan quality throughout procedure'
@@ -322,28 +311,28 @@ class EventLoggerService {
       };
 
       // Store the analysis result
-      await supabase.from('analysis_reports').insert({
+      await analysisReportRepository.create({
         report_type: 'REPLAY_CRITIC_COMPLETED',
-        risk_level: mockAnalysisResult.overall_score > 90 ? 'LOW' : 
+        risk_level: mockAnalysisResult.overall_score > 90 ? 'LOW' :
                    mockAnalysisResult.overall_score > 75 ? 'MEDIUM' : 'HIGH',
         confidence_score: 0.95,
         analysis_data: mockAnalysisResult,
         requires_action: mockAnalysisResult.overall_score < 80
       });
 
-      console.log(`🎬 ReplayCritic analysis completed for case ${caseId}: Score ${mockAnalysisResult.overall_score}/100`);
+      logger.info('ReplayCritic analysis completed', { caseId, score: mockAnalysisResult.overall_score });
 
     } catch (error) {
-      console.error('❌ ReplayCritic service call failed:', error);
+      logger.error('ReplayCritic service call failed', error);
     }
   }
 
   /**
    * Log system errors for monitoring
    */
-  private async logSystemError(eventData: MedicProcedureUpdatePayload, error: any): Promise<void> {
+  private async logSystemError(eventData: MedicProcedureUpdatePayload, error: unknown): Promise<void> {
     try {
-      await supabase.from('analysis_reports').insert({
+      await analysisReportRepository.create({
         report_type: 'EVENT_LOGGING_ERROR',
         risk_level: 'HIGH',
         confidence_score: 1.0,
@@ -359,7 +348,7 @@ class EventLoggerService {
         requires_action: true
       });
     } catch (logError) {
-      console.error('❌ Failed to log system error:', logError);
+      logger.error('Failed to log system error', logError);
     }
   }
 
@@ -367,58 +356,61 @@ class EventLoggerService {
    * Get procedure timeline for a specific case
    */
   public async getProcedureTimeline(caseId: string): Promise<ProcedureEventData[]> {
-    try {
-      const { data, error } = await supabase
-        .from('procedure_events')
-        .select('*')
-        .eq('case_id', caseId)
-        .order('timestamp', { ascending: true });
+    const result = await procedureEventRepository.findByCaseId(caseId);
 
-      if (error) {
-        throw error;
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('❌ Failed to get procedure timeline:', error);
+    if (!result.success) {
+      logger.error('Failed to get procedure timeline', { error: result.error });
       return [];
     }
+
+    return (result.data || []).map(e => ({
+      case_id: e.case_id,
+      appointment_id: e.appointment_id,
+      event_type: e.event_type,
+      event_data: e.event_data as Record<string, unknown>,
+      timestamp: e.timestamp
+    }));
   }
 
   /**
    * Get procedure statistics
    */
-  public async getProcedureStatistics(): Promise<any> {
-    try {
-      const { data, error } = await supabase
-        .from('procedure_events')
-        .select('case_id, event_type, timestamp')
-        .order('timestamp', { ascending: false })
-        .limit(1000);
+  public async getProcedureStatistics(): Promise<{
+    total_procedures: number;
+    total_events: number;
+    most_common_events: Record<string, number>;
+    recent_activity: Array<{ case_id: string; event_type: string; timestamp: string }>;
+  } | null> {
+    const result = await procedureEventRepository.findAll({
+      orderBy: { column: 'timestamp', ascending: false },
+      limit: 1000
+    });
 
-      if (error) {
-        throw error;
-      }
-
-      const stats = {
-        total_procedures: new Set(data?.map(e => e.case_id)).size,
-        total_events: data?.length || 0,
-        most_common_events: this.calculateEventFrequency(data || []),
-        recent_activity: data?.slice(0, 10) || []
-      };
-
-      return stats;
-    } catch (error) {
-      console.error('❌ Failed to get procedure statistics:', error);
+    if (!result.success) {
+      logger.error('Failed to get procedure statistics', { error: result.error });
       return null;
     }
+
+    const data = result.data || [];
+    const stats = {
+      total_procedures: new Set(data.map(e => e.case_id)).size,
+      total_events: data.length,
+      most_common_events: this.calculateEventFrequency(data),
+      recent_activity: data.slice(0, 10).map(e => ({
+        case_id: e.case_id,
+        event_type: e.event_type,
+        timestamp: e.timestamp
+      }))
+    };
+
+    return stats;
   }
 
   /**
    * Calculate event frequency for analytics
    */
-  private calculateEventFrequency(events: any[]): Record<string, number> {
-    return events.reduce((freq, event) => {
+  private calculateEventFrequency(events: Array<{ event_type: string }>): Record<string, number> {
+    return events.reduce((freq: Record<string, number>, event) => {
       freq[event.event_type] = (freq[event.event_type] || 0) + 1;
       return freq;
     }, {});
