@@ -19,7 +19,7 @@ import {
   Volume2
 } from 'lucide-react';
 import { Patient3DViewer } from '@/components/Patient3DViewer';
-import { patientRepository, procedureRepository } from '@/repositories';
+import { patientRepository, procedureRepository, procedureEventRepository } from '@/repositories';
 import { logger } from '@/utils/logger';
 
 interface Patient {
@@ -28,7 +28,7 @@ interface Patient {
   first_name: string;
   last_name: string;
   digital_twin_id?: string;
-  medical_history: any;
+  medical_history: Record<string, unknown>;
   consent_vocal: boolean;
 }
 
@@ -39,7 +39,7 @@ interface Procedure {
   status: string;
   scheduled_date: string;
   started_at?: string;
-  clinical_data: any;
+  clinical_data: Record<string, unknown>;
   surgeon_id?: string;
 }
 
@@ -48,7 +48,7 @@ interface ProcedureEvent {
   procedure_id: string;
   event_timestamp: string;
   event_type: string;
-  event_data: any;
+  event_data: Record<string, unknown>;
   confidence_score?: number;
   automated: boolean;
 }
@@ -304,29 +304,21 @@ export function MedicalCockpit() {
   const addProcedureEvent = async (eventType: string, eventData: Record<string, unknown>) => {
     if (!currentProcedure) return;
 
-    // Use supabase directly for procedure_event_logs as it may be a different table
-    try {
-      const { error } = await supabase
-        .from('procedure_events')
-        .insert({
-          case_id: currentProcedure.id,
-          appointment_id: currentProcedure.id,
-          event_type: eventType,
-          event_data: eventData,
-          processed: false
-        });
+    const result = await procedureEventRepository.logEvent(
+      currentProcedure.id,
+      currentProcedure.id,
+      eventType,
+      eventData,
+      currentProcedure.patient_id
+    );
 
-      if (error) {
-        logger.error('Error adding procedure event', { error: error.message });
-        return;
-      }
-
+    if (result.success) {
       toast({
         title: "Event Recorded",
         description: `${eventType} logged successfully`,
       });
-    } catch (error) {
-      logger.error('Error adding procedure event', error);
+    } else {
+      logger.error('Error adding procedure event', { error: result.error });
     }
   };
 

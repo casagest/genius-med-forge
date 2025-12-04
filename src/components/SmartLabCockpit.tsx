@@ -46,7 +46,7 @@ interface ProductionJob {
   priority: number;
   machine_assignment?: string;
   estimated_duration?: string;
-  material_requirements?: any;
+  material_requirements?: Record<string, unknown>;
   patient_id?: string;
   patients?: { patient_code: string };
 }
