@@ -8,7 +8,10 @@ on:
 
 env:
   NODE_VERSION: '18'
-  SUPABASE_PROJECT_REF: 'sosiozakhzrnapvxrtrb'
+  # IMPORTANT: Set SUPABASE_PROJECT_REF as a GitHub Secret
+  # Go to: Repository Settings > Secrets and variables > Actions > New repository secret
+  # Name: SUPABASE_PROJECT_REF
+  # Value: Your Supabase project reference ID
 
 jobs:
   # Job 1: Linting și formatare
@@ -110,9 +113,15 @@ jobs:
           version: latest
 
       - name: Validate Supabase config
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
+          if [ -z "${{ secrets.SUPABASE_PROJECT_REF }}" ]; then
+            echo "⚠️ SUPABASE_PROJECT_REF secret not set. Skipping Supabase validation."
+            exit 0
+          fi
           supabase init --skip-auth
-          supabase functions verify --project-ref ${{ env.SUPABASE_PROJECT_REF }}
+          supabase functions verify --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
 
   # Job 5: Security audit
   security-audit:

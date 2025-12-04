@@ -6,6 +6,7 @@
  */
 
 import { BaseRepository } from './BaseRepository';
+import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import type { RepositoryResult } from './BaseRepository';
 

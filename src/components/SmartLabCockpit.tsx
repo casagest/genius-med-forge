@@ -5,15 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Package, 
-  TrendingDown, 
-  TrendingUp, 
-  AlertTriangle, 
-  CheckCircle, 
-  Clock, 
-  Cpu, 
-  BarChart3,
+import {
+  Package,
+  AlertTriangle,
+  CheckCircle,
+  Cpu,
   ShoppingCart,
   RefreshCw,
   Zap,
@@ -23,6 +19,12 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import {
+  materialRepository,
+  labProductionQueueRepository,
+  analysisReportRepository
+} from '@/repositories';
+import { logger } from '@/utils/logger';
 
 interface Material {
   id: string;
@@ -89,16 +91,14 @@ export function SmartLabCockpit() {
   }, []);
 
   const fetchMaterials = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('lab_materials')
-        .select('*')
-        .order('material_name');
-      
-      if (error) throw error;
-      setMaterials(data || []);
-    } catch (error) {
-      console.error('Error fetching materials:', error);
+    const result = await materialRepository.findAll({
+      orderBy: { column: 'material_name', ascending: true }
+    });
+
+    if (result.success) {
+      setMaterials(result.data as Material[]);
+    } else {
+      logger.error('Error fetching materials', { error: result.error });
       // Mock data for development
       setMaterials([
         {
@@ -128,51 +128,42 @@ export function SmartLabCockpit() {
   };
 
   const fetchProductionJobs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('lab_production_queue')
-        .select(`
-          *,
-          patients (patient_code)
-        `)
-        .order('priority', { ascending: false });
-      
-      if (error) throw error;
-      setProductionJobs(data || []);
-    } catch (error) {
-      console.error('Error fetching production jobs:', error);
+    const result = await labProductionQueueRepository.findWithPatientInfo();
+
+    if (result.success) {
+      const mappedJobs = result.data.map(job => ({
+        ...job,
+        patients: job.patients ? { patient_code: job.patients.patient_code } : undefined
+      }));
+      setProductionJobs(mappedJobs as ProductionJob[]);
+    } else {
+      logger.error('Error fetching production jobs', { error: result.error });
     }
   };
 
   const fetchQualityReports = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('analysis_reports')
-        .select('*')
-        .order('generated_at', { ascending: false })
-        .limit(10);
-      
-      if (error) throw error;
-      
+    const result = await analysisReportRepository.findRecent(10);
+
+    if (result.success) {
       // Transform to match our QualityAnalysisReport interface
-      const transformedReports = (data || []).map(report => {
-        const analysisData = (report.analysis_data as any) || {};
+      const transformedReports = result.data.map(report => {
+        const analysisData = (report.analysis_data as Record<string, unknown>) || {};
         return {
-          job_id: analysisData.job_id || 'unknown',
+          job_id: (analysisData.job_id as string) || 'unknown',
           report_type: report.report_type as 'QUALITY' | 'RISK' | 'EFFICIENCY' | 'COMPLIANCE',
           risk_score: report.confidence_score || 0,
           confidence_score: report.confidence_score || 0,
-          ai_rationale: analysisData.ai_rationale || 'No rationale provided',
+          ai_rationale: (analysisData.ai_rationale as string) || 'No rationale provided',
           requires_action: report.requires_action || false,
-          quality_metrics: analysisData.quality_metrics || [],
-          recommendations: analysisData.recommendations || [],
+          quality_metrics: (analysisData.quality_metrics as QualityAnalysisReport['quality_metrics']) || [],
+          recommendations: (analysisData.recommendations as string[]) || [],
           generated_at: report.generated_at || new Date().toISOString()
         };
       });
-      
+
       setQualityReports(transformedReports);
-    } catch (error) {
-      console.error('Error fetching quality reports:', error);
+    } else {
+      logger.error('Error fetching quality reports', { error: result.error });
     }
   };
 
@@ -209,7 +200,7 @@ export function SmartLabCockpit() {
         });
       }
     } catch (error) {
-      console.error('Error running quality analysis:', error);
+      logger.error('Error running quality analysis', error);
       toast({
         title: "Analysis Failed",
         description: "Failed to run quality analysis.",
@@ -244,7 +235,7 @@ export function SmartLabCockpit() {
       
       await fetchProductionJobs();
     } catch (error) {
-      console.error('Error optimizing schedule:', error);
+      logger.error('Error optimizing schedule', error);
       toast({
         title: "Optimization Failed",
         description: "Failed to optimize production schedule.",

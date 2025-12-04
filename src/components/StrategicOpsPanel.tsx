@@ -4,31 +4,22 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { 
-  AlertTriangle, 
-  TrendingUp, 
-  Activity, 
-  Clock, 
+import {
+  AlertTriangle,
+  Activity,
   DollarSign,
   Package,
   Truck,
   Brain,
-  Zap,
   Target,
   BarChart3,
-  Users,
   Calendar,
   MapPin,
   CheckCircle2,
-  XCircle,
   AlertCircle,
-  Timer,
   Stethoscope,
   Factory,
-  ShoppingCart,
   PlayCircle,
-  PauseCircle,
-  RotateCcw,
   Wifi,
   WifiOff
 } from 'lucide-react';
@@ -36,6 +27,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useRealtimeAgents } from '@/hooks/useRealtimeAgents';
 import { RiskReportList } from '@/components/RiskReportList';
+import { analysisReportRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 interface RiskReport {
   id: string;
@@ -117,13 +110,13 @@ export function StrategicOpsPanel() {
   }, []);
 
   const fetchReports = async () => {
-    const { data } = await supabase
-      .from('analysis_reports')
-      .select('*')
-      .order('generated_at', { ascending: false })
-      .limit(50);
-    
-    setReports(data || []);
+    const result = await analysisReportRepository.findRecent(50);
+
+    if (result.success) {
+      setReports(result.data as RiskReport[]);
+    } else {
+      logger.error('Error fetching reports', { error: result.error });
+    }
   };
 
   const playVoiceAlert = (report: RiskReport) => {

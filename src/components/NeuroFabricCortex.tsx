@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Cpu, Clock, Package } from 'lucide-react';
+import { Cpu } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { labProductionQueueRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 interface LabJob {
   id: string;
@@ -56,15 +58,17 @@ export function NeuroFabricCortex() {
   }, []);
 
   const fetchProductionQueue = async () => {
-    const { data } = await supabase
-      .from('lab_production_queue')
-      .select(`
-        *,
-        patients (patient_code)
-      `)
-      .order('priority', { ascending: false });
-    
-    setJobs(data || []);
+    const result = await labProductionQueueRepository.findWithPatientInfo();
+
+    if (result.success) {
+      const mappedJobs = result.data.map(job => ({
+        ...job,
+        patients: job.patients ? { patient_code: job.patients.patient_code } : undefined
+      }));
+      setJobs(mappedJobs as LabJob[]);
+    } else {
+      logger.error('Error fetching production queue', { error: result.error });
+    }
   };
 
   const updateJobStatus = async (jobId: string, newStatus: string, machine?: string) => {

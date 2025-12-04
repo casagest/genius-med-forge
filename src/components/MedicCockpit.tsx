@@ -1,15 +1,16 @@
 // Medical Cockpit with Digital Twin 3D and Explainable AI
 import { useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, useGLTF } from '@react-three/drei';
+import { OrbitControls } from '@react-three/drei';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Brain, Mic, Eye, Activity, Shield, Zap } from 'lucide-react';
+import { Brain, Eye, Activity, Shield, Zap } from 'lucide-react';
 import VoiceInterface from './VoiceInterface';
 import { MedicalProcedureTracker } from './MedicalProcedureTracker';
-import { supabase } from '@/integrations/supabase/client';
+import { patientRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 interface AIDecision {
   recommendation: string;
@@ -97,15 +98,10 @@ export function MedicCockpit() {
   }, []);
 
   const fetchPatients = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .limit(10);
+    const result = await patientRepository.findAll({ limit: 10 });
 
-      if (error) throw error;
-      
-      const patientsWithVitals = (data || []).map(patient => ({
+    if (result.success) {
+      const patientsWithVitals = result.data.map(patient => ({
         ...patient,
         digital_twin_id: patient.digital_twin_id || '',
         vitals: {
@@ -115,18 +111,18 @@ export function MedicCockpit() {
           oxygen_saturation: Math.floor(Math.random() * 5) + 95
         }
       })) as PatientData[];
-      
+
       setPatients(patientsWithVitals);
       if (patientsWithVitals.length > 0) {
         setCurrentPatient(patientsWithVitals[0]);
       }
-    } catch (error) {
-      console.error('Error fetching patients:', error);
+    } else {
+      logger.error('Error fetching patients', { error: result.error });
     }
   };
 
   const handleVoiceMessage = (message: string) => {
-    console.log('Voice command received:', message);
+    logger.info('Voice command received', { message });
     // Update AI decision based on voice input
     if (message.toLowerCase().includes('risk')) {
       updateAIDecision('risk_assessment');
@@ -137,7 +133,7 @@ export function MedicCockpit() {
 
   const handleAudioReceived = (audioData: Uint8Array) => {
     // Handle real-time audio response from AI
-    console.log('Audio response received, length:', audioData.length);
+    logger.debug('Audio response received', { length: audioData.length });
   };
 
   const updateAIDecision = (analysisType: string) => {
