@@ -18,7 +18,7 @@ interface LabJob {
   machine_assignment?: string;
   estimated_duration?: string;
   actual_duration?: string;
-  material_requirements?: any;
+  material_requirements?: Record<string, unknown>;
   patient_id?: string;
   created_at?: string;
   updated_at?: string;

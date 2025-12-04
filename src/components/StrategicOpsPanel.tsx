@@ -35,7 +35,7 @@ interface RiskReport {
   report_type: string;
   risk_level: string;
   confidence_score: number;
-  analysis_data: any;
+  analysis_data: Record<string, unknown>;
   requires_action: boolean;
   generated_at: string;
 }
@@ -50,8 +50,8 @@ interface ActiveProcedure {
   created_at: string;
   estimated_duration_minutes: number;
   actual_duration_minutes?: number;
-  complications: any;
-  materials_used: any;
+  complications: unknown[];
+  materials_used: Record<string, number>;
 }
 
 interface ProcurementAlert {

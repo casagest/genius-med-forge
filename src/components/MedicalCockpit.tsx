@@ -28,7 +28,7 @@ interface Patient {
   first_name: string;
   last_name: string;
   digital_twin_id?: string;
-  medical_history: any;
+  medical_history: Record<string, unknown>;
   consent_vocal: boolean;
 }
 
@@ -39,7 +39,7 @@ interface Procedure {
   status: string;
   scheduled_date: string;
   started_at?: string;
-  clinical_data: any;
+  clinical_data: Record<string, unknown>;
   surgeon_id?: string;
 }
 
@@ -48,7 +48,7 @@ interface ProcedureEvent {
   procedure_id: string;
   event_timestamp: string;
   event_type: string;
-  event_data: any;
+  event_data: Record<string, unknown>;
   confidence_score?: number;
   automated: boolean;
 }

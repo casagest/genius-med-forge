@@ -8,9 +8,34 @@ import { useToast } from '@/hooks/use-toast';
 import { Brain, Activity, BarChart3, AlertTriangle, User, CheckCircle } from 'lucide-react';
 import VoiceInterface from './VoiceInterface';
 
+interface MedicalAnalysis {
+  riskLevel: string;
+  confidence: number;
+  findings?: string[];
+  recommendations?: string[];
+  insights?: string[];
+}
+
+interface OperationalData {
+  lab_efficiency: number;
+  quality_metrics: number;
+}
+
+interface AnalysisResult {
+  success: boolean;
+  analysis_type?: string;
+  patient_code?: string;
+  analysis?: MedicalAnalysis;
+  operational_data?: OperationalData;
+  reportId?: string;
+  generated_at?: string;
+  strategic_insights?: Record<string, unknown>;
+  timestamp?: string;
+}
+
 export function MedicalAIInterface() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isVoiceSpeaking, setIsVoiceSpeaking] = useState(false);
   const [patientData, setPatientData] = useState({
     patient_code: '',
