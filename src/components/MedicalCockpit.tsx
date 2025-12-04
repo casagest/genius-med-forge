@@ -5,12 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Activity, 
-  Heart, 
-  Brain, 
-  Clock, 
-  Mic, 
+import {
+  Activity,
+  Heart,
+  Brain,
+  Clock,
+  Mic,
   MicOff,
   Play,
   Pause,
@@ -19,6 +19,8 @@ import {
   Volume2
 } from 'lucide-react';
 import { Patient3DViewer } from '@/components/Patient3DViewer';
+import { patientRepository, procedureRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 interface Patient {
   id: string;
@@ -99,20 +101,14 @@ export function MedicalCockpit() {
   }, [currentProcedure]);
 
   const fetchPatients = async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from('patients')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching patients:', error);
-        return;
-      }
-      
-      setPatients((data as Patient[]) || []);
-    } catch (error) {
-      console.error('Error fetching patients:', error);
+    const result = await patientRepository.findAll({
+      orderBy: { column: 'created_at', ascending: false }
+    });
+
+    if (result.success) {
+      setPatients((result.data as Patient[]) || []);
+    } else {
+      logger.error('Error fetching patients', { error: result.error });
       // Use mock data if database not ready
       setPatients([
         {
@@ -128,29 +124,37 @@ export function MedicalCockpit() {
   };
 
   const fetchProcedureData = async (patientId: string) => {
-    try {
-      // Fetch current procedure
-      const { data: procedure } = await (supabase as any)
-        .from('procedures')
-        .select('*')
-        .eq('patient_id', patientId)
-        .eq('status', 'in_progress')
-        .single();
+    const result = await procedureRepository.findByPatientId(patientId);
 
-      if (procedure) {
-        setCurrentProcedure(procedure as Procedure);
-        
+    if (result.success && result.data.length > 0) {
+      // Find in-progress procedure
+      const inProgressProcedure = result.data.find(p => p.status === 'IN_PROGRESS');
+      if (inProgressProcedure) {
+        setCurrentProcedure({
+          id: inProgressProcedure.id,
+          patient_id: inProgressProcedure.patient_id || patientId,
+          procedure_type: inProgressProcedure.procedure_type,
+          status: inProgressProcedure.status,
+          scheduled_date: inProgressProcedure.created_at,
+          started_at: inProgressProcedure.started_at || undefined,
+          clinical_data: {}
+        });
+
         // Fetch procedure events
-        const { data: events } = await (supabase as any)
-          .from('procedure_event_logs')
-          .select('*')
-          .eq('procedure_id', procedure.id)
-          .order('event_timestamp', { ascending: false });
-        
-        setProcedureEvents((events as ProcedureEvent[]) || []);
+        const eventsResult = await procedureRepository.getProcedureEvents(inProgressProcedure.id);
+        if (eventsResult.success) {
+          setProcedureEvents(eventsResult.data.map(e => ({
+            id: e.id,
+            procedure_id: e.case_id,
+            event_timestamp: e.timestamp,
+            event_type: e.event_type,
+            event_data: e.event_data,
+            automated: e.processed || false
+          })) as ProcedureEvent[]);
+        }
       }
-    } catch (error) {
-      console.error('Error fetching procedure data:', error);
+    } else {
+      logger.error('Error fetching procedure data', { error: result.success ? 'No procedures found' : result.error });
       // Mock procedure for testing
       setCurrentProcedure({
         id: '1',
@@ -196,7 +200,7 @@ export function MedicalCockpit() {
         description: "Speak your command clearly",
       });
     } catch (error) {
-      console.error('Error starting voice recording:', error);
+      logger.error('Error starting voice recording', error);
       toast({
         title: "Microphone Error",
         description: "Could not access microphone",
@@ -224,15 +228,15 @@ export function MedicalCockpit() {
       });
       
       if (error) throw error;
-      
+
       const transcription = data.text;
-      console.log('Voice command:', transcription);
-      
+      logger.info('Voice command received', { transcription });
+
       // Process medical commands
       await handleVoiceCommand(transcription);
-      
+
     } catch (error) {
-      console.error('Error processing voice command:', error);
+      logger.error('Error processing voice command', error);
       toast({
         title: "Voice Processing Error",
         description: "Could not process voice command",
@@ -280,82 +284,65 @@ export function MedicalCockpit() {
 
   const startProcedure = async () => {
     if (!currentProcedure) return;
-    
-    try {
-      const { error } = await (supabase as any)
-        .from('procedures')
-        .update({ 
-          status: 'in_progress', 
-          started_at: new Date().toISOString() 
-        })
-        .eq('id', currentProcedure.id);
-      
-      if (error) {
-        console.error('Error starting procedure:', error);
-        return;
-      }
-      
+
+    const result = await procedureRepository.update(currentProcedure.id, {
+      status: 'IN_PROGRESS',
+      started_at: new Date().toISOString()
+    });
+
+    if (result.success) {
       speakAlert('Procedure started. All systems monitoring.');
       toast({
         title: "Procedure Started",
         description: "Real-time monitoring activated",
       });
-    } catch (error) {
-      console.error('Error starting procedure:', error);
+    } else {
+      logger.error('Error starting procedure', { error: result.error });
     }
   };
 
-  const addProcedureEvent = async (eventType: string, eventData: any) => {
+  const addProcedureEvent = async (eventType: string, eventData: Record<string, unknown>) => {
     if (!currentProcedure) return;
-    
+
+    // Use supabase directly for procedure_event_logs as it may be a different table
     try {
-      const { error } = await (supabase as any)
-        .from('procedure_event_logs')
+      const { error } = await supabase
+        .from('procedure_events')
         .insert({
-          procedure_id: currentProcedure.id,
+          case_id: currentProcedure.id,
+          appointment_id: currentProcedure.id,
           event_type: eventType,
           event_data: eventData,
-          automated: false
+          processed: false
         });
-      
+
       if (error) {
-        console.error('Error adding procedure event:', error);
+        logger.error('Error adding procedure event', { error: error.message });
         return;
       }
-      
+
       toast({
         title: "Event Recorded",
         description: `${eventType} logged successfully`,
       });
     } catch (error) {
-      console.error('Error adding procedure event:', error);
+      logger.error('Error adding procedure event', error);
     }
   };
 
   const endProcedure = async () => {
     if (!currentProcedure) return;
-    
-    try {
-      const { error } = await (supabase as any)
-        .from('procedures')
-        .update({ 
-          status: 'completed', 
-          completed_at: new Date().toISOString() 
-        })
-        .eq('id', currentProcedure.id);
-      
-      if (error) {
-        console.error('Error ending procedure:', error);
-        return;
-      }
-      
+
+    const result = await procedureRepository.completeProcedure(currentProcedure.id, {});
+
+    if (result.success) {
       speakAlert('Procedure completed successfully. Generating post-operative analysis.');
       toast({
         title: "Procedure Completed",
         description: "Initiating post-operative analysis",
       });
-    } catch (error) {
-      console.error('Error ending procedure:', error);
+    } else {
+      logger.error('Error ending procedure', { error: result.error });
     }
   };
 

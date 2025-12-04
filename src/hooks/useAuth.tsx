@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { userRoleRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 interface AuthContextType {
   user: User | null;
@@ -28,18 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Fetch user role when user logs in
         if (session?.user) {
           setTimeout(async () => {
-            try {
-              const { data, error } = await supabase
-                .from('user_roles')
-                .select('role')
-                .eq('user_id', session.user.id)
-                .single();
-              
-              if (!error && data) {
-                setUserRole(data.role);
-              }
-            } catch (err) {
-              console.error('Error fetching user role:', err);
+            const result = await userRoleRepository.getUserRole(session.user.id);
+            if (result.success) {
+              setUserRole(result.data);
+            } else {
+              logger.error('Error fetching user role', { error: result.error });
             }
           }, 0);
         } else {
@@ -63,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Error signing out:', error);
+      logger.error('Error signing out', { error: error.message });
     }
   };
 
