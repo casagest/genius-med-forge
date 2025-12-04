@@ -1,5 +1,7 @@
 // Production-grade Inventory Forecast Service
 import { supabase } from '@/integrations/supabase/client';
+import { analysisReportRepository, procedureEventRepository, materialRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 interface ProcedureMaterial {
   sku: string;
@@ -80,16 +82,16 @@ class InventoryForecastService {
    * Main forecasting method - runs daily to predict and prevent stockouts
    */
   public async runDailyForecast(): Promise<void> {
-    console.log('🔮 STARTING Daily Inventory Forecast');
-    
+    logger.info('Starting Daily Inventory Forecast');
+
     try {
       // 1. Get upcoming procedures from active_procedures table
       const upcomingProcedures = await this.getUpcomingProcedures(7);
-      console.log(`📅 Found ${upcomingProcedures.length} procedures in next 7 days`);
+      logger.info('Found procedures in next 7 days', { count: upcomingProcedures.length });
 
       // 2. Calculate total material requirements
       const materialRequirements = this.calculateMaterialRequirements(upcomingProcedures);
-      console.log(`📊 Calculated requirements for ${Object.keys(materialRequirements).length} materials`);
+      logger.info('Calculated requirements', { materialsCount: Object.keys(materialRequirements).length });
 
       // 3. Get current inventory levels
       const currentInventory = await this.getCurrentInventoryLevels();
@@ -101,10 +103,10 @@ class InventoryForecastService {
       await this.logForecastResults(materialRequirements, currentInventory);
 
     } catch (error) {
-      console.error('❌ Error in daily forecast:', error);
-      
+      logger.error('Error in daily forecast', error);
+
       // Log error to Supabase for monitoring
-      await supabase.from('analysis_reports').insert({
+      await analysisReportRepository.create({
         report_type: 'FORECAST_ERROR',
         risk_level: 'HIGH',
         confidence_score: 0,
@@ -125,6 +127,7 @@ class InventoryForecastService {
     const endDate = new Date();
     endDate.setDate(startDate.getDate() + days);
 
+    // Use supabase directly for active_procedures as it may need specific queries
     const { data, error } = await supabase
       .from('active_procedures')
       .select('id, appointment_id, patient_id, procedure_type, created_at')
@@ -134,7 +137,7 @@ class InventoryForecastService {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Database error fetching procedures:', error);
+      logger.error('Database error fetching procedures', { error: error.message });
       return [];
     }
 
@@ -154,13 +157,13 @@ class InventoryForecastService {
 
     for (const procedure of procedures) {
       const materials = PROCEDURE_MATERIALS[procedure.procedure_type];
-      
+
       if (materials) {
         for (const material of materials) {
           requirements[material.sku] = (requirements[material.sku] || 0) + material.quantity;
         }
       } else {
-        console.warn(`⚠️ No material mapping found for procedure type: ${procedure.procedure_type}`);
+        logger.warn('No material mapping found for procedure type', { procedureType: procedure.procedure_type });
       }
     }
 
@@ -171,17 +174,15 @@ class InventoryForecastService {
    * Get current inventory levels from lab_materials table
    */
   private async getCurrentInventoryLevels(): Promise<Record<string, number>> {
-    const { data, error } = await supabase
-      .from('lab_materials')
-      .select('material_name, current_stock');
+    const result = await materialRepository.findAll();
 
-    if (error) {
-      console.error('Error fetching inventory:', error);
+    if (!result.success) {
+      logger.error('Error fetching inventory', { error: result.error });
       return {};
     }
 
     const inventory: Record<string, number> = {};
-    (data || []).forEach(item => {
+    (result.data || []).forEach(item => {
       // Map material_name to SKU (in real implementation, this would be a proper SKU field)
       const sku = this.mapMaterialNameToSku(item.material_name);
       inventory[sku] = item.current_stock;
@@ -194,17 +195,17 @@ class InventoryForecastService {
    * Process shortages and create procurement orders
    */
   private async processShortagesAndOrder(
-    requirements: Record<string, number>, 
+    requirements: Record<string, number>,
     currentInventory: Record<string, number>
   ): Promise<void> {
-    
+
     for (const sku in requirements) {
       const required = requirements[sku];
       const current = currentInventory[sku] || 0;
       const supplierConfig = SUPPLIER_CONFIG[sku];
 
       if (!supplierConfig) {
-        console.warn(`⚠️ No supplier configuration for SKU: ${sku}`);
+        logger.warn('No supplier configuration for SKU', { sku });
         continue;
       }
 
@@ -218,9 +219,14 @@ class InventoryForecastService {
         const shortfall = totalNeeded - current;
         const orderQuantity = Math.max(shortfall, supplierConfig.minimum_order_quantity);
 
-        console.log(`🚨 PREDICTED SHORTAGE: ${sku}`);
-        console.log(`   Current: ${current}, Required: ${required}, Safety: ${safetyStock}`);
-        console.log(`   Ordering: ${orderQuantity} units from ${supplierConfig.supplier_name}`);
+        logger.warn('Predicted shortage', {
+          sku,
+          current,
+          required,
+          safetyStock,
+          orderQuantity,
+          supplier: supplierConfig.supplier_name
+        });
 
         await this.createProcurementOrder(sku, orderQuantity, supplierConfig);
       }
@@ -231,11 +237,11 @@ class InventoryForecastService {
    * Create procurement order based on supplier configuration
    */
   private async createProcurementOrder(
-    sku: string, 
-    quantity: number, 
+    sku: string,
+    quantity: number,
     supplierConfig: SupplierConfiguration[string]
   ): Promise<void> {
-    
+
     const orderData = {
       sku,
       quantity,
@@ -251,19 +257,19 @@ class InventoryForecastService {
       case 'email':
         await this.sendEmailOrder(orderData);
         break;
-      
+
       case 'manual':
         await this.createManualOrderTask(orderData);
         break;
-      
+
       case 'api':
         // For future API integrations
-        console.log(`🔌 API order would be placed for ${sku}`);
+        logger.info('API order would be placed', { sku });
         break;
     }
 
     // Log the procurement action
-    await supabase.from('analysis_reports').insert({
+    await analysisReportRepository.create({
       report_type: 'PREDICTIVE_REORDER',
       risk_level: 'MEDIUM',
       confidence_score: 0.85,
@@ -278,10 +284,10 @@ class InventoryForecastService {
   /**
    * Send email order to supplier using procurement-email edge function
    */
-  private async sendEmailOrder(orderData: any): Promise<void> {
+  private async sendEmailOrder(orderData: Record<string, unknown>): Promise<void> {
     try {
-      console.log(`📧 Sending EMAIL ORDER to ${orderData.email} for ${orderData.sku}`);
-      
+      logger.info('Sending EMAIL ORDER', { email: orderData.email, sku: orderData.sku });
+
       const emailPayload = {
         sku: orderData.sku,
         quantity: orderData.quantity,
@@ -298,31 +304,30 @@ class InventoryForecastService {
       });
 
       if (error) {
-        console.error('❌ Email order failed:', error);
+        logger.error('Email order failed', { error: error.message });
         throw error;
       }
 
-      console.log(`✅ Email order sent successfully:`, data);
-      
+      logger.info('Email order sent successfully', data);
+
       // Log successful email sent
-      await supabase.from('procedure_events').insert({
-        case_id: emailPayload.case_id,
-        appointment_id: 'system_generated',
-        event_type: 'email_order_sent',
-        event_data: {
+      await procedureEventRepository.logEvent(
+        emailPayload.case_id,
+        'system_generated',
+        'email_order_sent',
+        {
           ...emailPayload,
           order_id: data?.order_id,
           message_id: data?.message_id,
           timestamp: new Date().toISOString()
-        },
-        timestamp: new Date().toISOString()
-      });
+        }
+      );
 
     } catch (error) {
-      console.error('❌ Failed to send email order:', error);
-      
+      logger.error('Failed to send email order', error);
+
       // Fallback to manual task creation
-      console.log('📋 Creating manual task as fallback...');
+      logger.info('Creating manual task as fallback...');
       await this.createManualOrderTask({
         ...orderData,
         fallback_reason: 'Email order failed'
@@ -333,14 +338,16 @@ class InventoryForecastService {
   /**
    * Create manual order task for management
    */
-  private async createManualOrderTask(orderData: any): Promise<void> {
-    console.log(`📋 MANUAL TASK CREATED for ${orderData.sku}`);
-    console.log(`   Supplier: ${orderData.supplier}`);
-    console.log(`   Contact: ${orderData.contact_info}`);
-    console.log(`   Quantity: ${orderData.quantity} units`);
-    
+  private async createManualOrderTask(orderData: Record<string, unknown>): Promise<void> {
+    logger.info('Manual task created', {
+      sku: orderData.sku,
+      supplier: orderData.supplier,
+      contact: orderData.contact_info,
+      quantity: orderData.quantity
+    });
+
     // Create task in analysis_reports table for management dashboard
-    await supabase.from('analysis_reports').insert({
+    await analysisReportRepository.create({
       report_type: 'MANUAL_ORDER_TASK',
       risk_level: 'HIGH',
       confidence_score: 0.95,
@@ -357,21 +364,21 @@ class InventoryForecastService {
    * Log forecast results for monitoring and improvement
    */
   private async logForecastResults(
-    requirements: Record<string, number>, 
+    requirements: Record<string, number>,
     inventory: Record<string, number>
   ): Promise<void> {
-    
+
     const forecastSummary = {
       total_materials_analyzed: Object.keys(requirements).length,
       total_procedures_forecasted: Object.values(requirements).reduce((sum, qty) => sum + qty, 0),
-      shortages_identified: Object.keys(requirements).filter(sku => 
+      shortages_identified: Object.keys(requirements).filter(sku =>
         (inventory[sku] || 0) < requirements[sku]
       ).length,
       forecast_accuracy_score: this.calculateForecastAccuracy(),
       timestamp: new Date().toISOString()
     };
 
-    await supabase.from('analysis_reports').insert({
+    await analysisReportRepository.create({
       report_type: 'DAILY_FORECAST_SUMMARY',
       risk_level: 'LOW',
       confidence_score: forecastSummary.forecast_accuracy_score,
@@ -379,8 +386,10 @@ class InventoryForecastService {
       requires_action: false
     });
 
-    console.log('✅ Daily forecast completed successfully');
-    console.log(`📊 Summary: ${forecastSummary.total_materials_analyzed} materials, ${forecastSummary.shortages_identified} shortages identified`);
+    logger.info('Daily forecast completed successfully', {
+      materialsAnalyzed: forecastSummary.total_materials_analyzed,
+      shortagesIdentified: forecastSummary.shortages_identified
+    });
   }
 
   /**

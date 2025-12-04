@@ -51,9 +51,9 @@ export class MaterialRepository extends BaseRepository<
   }
 
   /**
-   * Update material stock level
+   * Update material stock level by ID
    */
-  async updateStock(materialId: string, quantity: number, operation: 'add' | 'subtract'): Promise<RepositoryResult<MaterialRow>> {
+  async updateStockById(materialId: string, quantity: number, operation: 'add' | 'subtract'): Promise<RepositoryResult<MaterialRow>> {
     try {
       // First, get current stock
       const currentResult = await this.findById(materialId);
@@ -74,6 +74,34 @@ export class MaterialRepository extends BaseRepository<
       return this.update(materialId, {
         current_stock: newStock,
       } as MaterialUpdate);
+    } catch (error) {
+      this.logger.error('Unexpected error in updateStockById', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Update material stock level by name
+   */
+  async updateStock(materialName: string, newStock: number): Promise<RepositoryResult<MaterialRow>> {
+    try {
+      const { data, error } = await supabase
+        .from(this.tableName)
+        .update({ current_stock: newStock })
+        .eq('material_name', materialName)
+        .select()
+        .single();
+
+      if (error) {
+        this.logger.error('Failed to update stock by name', error);
+        return { success: false, error: error.message };
+      }
+
+      this.logger.info('Updated stock', { materialName, newStock });
+      return { success: true, data };
     } catch (error) {
       this.logger.error('Unexpected error in updateStock', error);
       return {

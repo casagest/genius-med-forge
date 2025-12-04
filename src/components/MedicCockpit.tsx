@@ -1,16 +1,37 @@
 // Medical Cockpit with Digital Twin 3D and Explainable AI
-import { useState, useEffect, Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Brain, Eye, Activity, Shield, Zap } from 'lucide-react';
-import VoiceInterface from './VoiceInterface';
 import { MedicalProcedureTracker } from './MedicalProcedureTracker';
 import { patientRepository } from '@/repositories';
 import { logger } from '@/utils/logger';
+
+// Lazy load heavy 3D and voice components
+const DigitalTwin3DViewer = lazy(() => import('./DigitalTwin3DViewer').then(m => ({ default: m.DigitalTwin3DViewer })));
+const VoiceInterface = lazy(() => import('./VoiceInterface'));
+
+// Loading fallback for 3D viewer
+const Viewer3DFallback = () => (
+  <div className="h-96 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg flex items-center justify-center">
+    <div className="text-center space-y-2">
+      <Skeleton className="h-32 w-32 mx-auto rounded-lg" />
+      <p className="text-sm text-muted-foreground">Loading 3D viewer...</p>
+    </div>
+  </div>
+);
+
+// Loading fallback for voice interface
+const VoiceInterfaceFallback = () => (
+  <div className="p-6 space-y-4">
+    <Skeleton className="h-8 w-48" />
+    <Skeleton className="h-32 w-full" />
+    <Skeleton className="h-10 w-32" />
+  </div>
+);
 
 interface AIDecision {
   recommendation: string;
@@ -41,15 +62,6 @@ interface MedicalInsight {
   value: string;
   status: 'normal' | 'warning' | 'critical';
   timestamp: string;
-}
-
-function DigitalTwin3D({ patientData }: { patientData: any }) {
-  return (
-    <mesh>
-      <boxGeometry args={[2, 2, 2]} />
-      <meshStandardMaterial color="#e0e0e0" wireframe />
-    </mesh>
-  );
 }
 
 export function MedicCockpit() {
@@ -212,21 +224,9 @@ export function MedicCockpit() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-96 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg">
-                  <Canvas camera={{ position: [0, 0, 5] }}>
-                    <ambientLight intensity={0.5} />
-                    <pointLight position={[10, 10, 10]} />
-                    <Suspense fallback={null}>
-                      <DigitalTwin3D patientData={currentPatient} />
-                    </Suspense>
-                    <OrbitControls enableZoom={true} enablePan={true} enableRotate={true} />
-                  </Canvas>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <Button size="sm" variant="outline">Front View</Button>
-                  <Button size="sm" variant="outline">Side View</Button>
-                  <Button size="sm" variant="outline">Top View</Button>
-                </div>
+                <Suspense fallback={<Viewer3DFallback />}>
+                  <DigitalTwin3DViewer patientData={currentPatient} />
+                </Suspense>
               </CardContent>
             </Card>
 
@@ -346,12 +346,14 @@ export function MedicCockpit() {
         </TabsContent>
 
         <TabsContent value="voice" className="mt-6">
-          <VoiceInterface 
-            onSpeakingChange={(speaking) => {
-              // Handle speaking state change
-              console.log('Voice AI speaking:', speaking);
-            }}
-          />
+          <Suspense fallback={<VoiceInterfaceFallback />}>
+            <VoiceInterface
+              onSpeakingChange={(speaking) => {
+                // Handle speaking state change
+                logger.debug('Voice AI speaking:', { speaking });
+              }}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="monitoring" className="mt-6">

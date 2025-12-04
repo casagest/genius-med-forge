@@ -2,6 +2,8 @@ import { io, Socket } from 'socket.io-client';
 import { MedicProcedureUpdatePayload, AgentEvent } from '../types/medical-events';
 import { supabase } from '@/integrations/supabase/client';
 import { inventoryForecastService } from './InventoryForecastService';
+import { analysisReportRepository, procedureEventRepository, materialRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 // Advanced Lab Machine Management
 interface LabMachine {
@@ -123,15 +125,15 @@ export class AgentLab {
   }
 
   private connect(serverUrl: string): void {
-    console.log(`🏭 AgentLab [${this.labId}] connecting to ${serverUrl}...`);
-    
+    logger.info('AgentLab connecting', { labId: this.labId, serverUrl });
+
     this.socket = io(serverUrl, {
       transports: ['websocket'],
       autoConnect: true,
     });
 
     this.socket.on('connect', () => {
-      console.log(`✅ AgentLab [${this.labId}] connected with ID: ${this.socket?.id}`);
+      logger.info('AgentLab connected', { labId: this.labId, socketId: this.socket?.id });
       this.isConnected = true;
       this.socket?.emit('join_room', 'lab_room');
       this.startPredictiveOptimization();
@@ -147,14 +149,14 @@ export class AgentLab {
     });
 
     this.socket.on('disconnect', () => {
-      console.log(`❌ AgentLab [${this.labId}] disconnected`);
+      logger.warn('AgentLab disconnected', { labId: this.labId });
       this.isConnected = false;
     });
   }
 
   // 🧠 FEATURE 1: PREDICTIVE RESOURCE OPTIMIZATION
   private async startPredictiveOptimization(): Promise<void> {
-    console.log('🔮 Starting predictive optimization...');
+    logger.info('Starting predictive optimization...');
     
     // Run daily forecast immediately
     await inventoryForecastService.runDailyForecast();
@@ -203,19 +205,19 @@ export class AgentLab {
           this.productionQueue
         );
 
-        console.log(`🎯 Optimized schedule for ${optimizedSchedule.length} procedures`);
+        logger.info('Optimized schedule', { proceduresCount: optimizedSchedule.length });
         this.applyOptimizedSchedule(optimizedSchedule);
       }
     } catch (error) {
-      console.error('❌ Error in predictive optimization:', error);
+      logger.error('Error in predictive optimization', error);
     }
   }
 
   private optimizeProductionNesting(): void {
     const pendingJobs = this.productionQueue.filter(job => job.status === 'pending');
     const nestedGroups = this.schedulingAI.optimizeNesting(pendingJobs);
-    
-    console.log(`🧩 Optimized ${pendingJobs.length} jobs into ${nestedGroups.length} nested groups`);
+
+    logger.info('Optimized nesting', { jobs: pendingJobs.length, groups: nestedGroups.length });
     
     // Update job priorities based on nesting optimization
     nestedGroups.forEach((group, index) => {
@@ -227,7 +229,7 @@ export class AgentLab {
 
   // 🎯 FEATURE 2: AUTONOMOUS QUALITY CONTROL
   private async performQualityControl(jobId: string): Promise<QualityAnalysis> {
-    console.log(`🔍 Starting autonomous QC for job ${jobId}...`);
+    logger.info('Starting autonomous QC', { jobId });
     
     const job = this.productionQueue.find(j => j.jobId === jobId);
     if (!job) throw new Error(`Job ${jobId} not found`);
@@ -263,7 +265,7 @@ export class AgentLab {
       await this.autoAdjustMachineParameters(job.assignedMachineId!, qualityAnalysis);
     }
 
-    console.log(`✅ QC complete for ${jobId}: Score ${qualityScore}/100`);
+    logger.info('QC complete', { jobId, score: qualityScore });
     return qualityAnalysis;
   }
 
@@ -272,14 +274,14 @@ export class AgentLab {
     if (!machine) return;
 
     const adjustments = this.qualityAI.generateParameterAdjustments(analysis, machine);
-    
+
     // Apply adjustments
     Object.assign(machine.settings, adjustments);
-    
-    console.log(`🔧 Auto-adjusted parameters for ${machineId}:`, adjustments);
-    
+
+    logger.info('Auto-adjusted parameters', { machineId, adjustments });
+
     // Log to Supabase for audit trail
-    await supabase.from('analysis_reports').insert({
+    await analysisReportRepository.create({
       report_type: 'MACHINE_ADJUSTMENT',
       risk_level: 'MEDIUM',
       confidence_score: 0.85,
@@ -295,12 +297,12 @@ export class AgentLab {
 
   // 💰 FEATURE 3: INTELLIGENT MATERIAL & COST MANAGEMENT
   private async predictiveInventoryManagement(): Promise<void> {
-    console.log('📦 Running predictive inventory management...');
+    logger.info('Running predictive inventory management...');
 
     for (const [sku, item] of this.inventory.entries()) {
       const consumptionRate = await this.inventoryAI.predictConsumptionRate(sku, this.productionQueue);
       const daysUntilStockout = item.quantity / consumptionRate;
-      
+
       if (daysUntilStockout <= item.leadTime + 1) {
         await this.autoReorder(item);
       }
@@ -309,9 +311,9 @@ export class AgentLab {
 
   private async autoReorder(item: InventoryItem): Promise<void> {
     const orderQuantity = this.inventoryAI.calculateOptimalOrderQuantity(item);
-    
-    console.log(`🛒 Auto-reordering ${orderQuantity} units of ${item.name}`);
-    
+
+    logger.info('Auto-reordering', { quantity: orderQuantity, item: item.name });
+
     // In a real implementation, this would connect to supplier APIs
     const order = {
       sku: item.sku,
@@ -322,7 +324,7 @@ export class AgentLab {
     };
 
     // Log order to Supabase
-    await supabase.from('analysis_reports').insert({
+    await analysisReportRepository.create({
       report_type: 'AUTOMATIC_REORDER',
       risk_level: 'LOW',
       confidence_score: 0.95,
@@ -340,25 +342,22 @@ export class AgentLab {
   private async consumeMaterial(sku: string, quantity: number): Promise<boolean> {
     const item = this.inventory.get(sku);
     if (!item || item.quantity < quantity) {
-      console.warn(`⚠️ Insufficient inventory for ${sku}: need ${quantity}, have ${item?.quantity || 0}`);
+      logger.warn('Insufficient inventory', { sku, needed: quantity, have: item?.quantity || 0 });
       return false;
     }
 
     item.quantity -= quantity;
-    
-    // Update Supabase inventory
-    await supabase
-      .from('lab_materials')
-      .update({ current_stock: item.quantity })
-      .eq('material_name', item.name);
 
-    console.log(`📉 Consumed ${quantity} units of ${item.name}, remaining: ${item.quantity}`);
+    // Update via repository
+    await materialRepository.updateStock(item.name, item.quantity);
+
+    logger.info('Consumed material', { quantity, item: item.name, remaining: item.quantity });
     return true;
   }
 
   // 🩺 MEDIC EVENT HANDLERS
   private async handleMedicUpdate(data: MedicProcedureUpdatePayload): Promise<void> {
-    console.log(`🏭 Processing medic update: ${data.eventType} for case ${data.caseId}`);
+    logger.info('Processing medic update', { eventType: data.eventType, caseId: data.caseId });
 
     switch (data.eventType) {
       case 'start_surgery':
@@ -466,25 +465,24 @@ export class AgentLab {
   }
 
   private async handleMaterialConfirmed(data: MedicProcedureUpdatePayload): Promise<void> {
-    const { itemSku, lotNumber } = data as any;
-    console.log(`✅ Material confirmed: ${itemSku} (Lot: ${lotNumber})`);
+    const { itemSku, lotNumber } = data as { itemSku: string; lotNumber: string };
+    logger.info('Material confirmed', { itemSku, lotNumber });
 
     // Consume from inventory
     await this.consumeMaterial(itemSku, 1);
-    
+
     // Log for traceability
-    await supabase.from('procedure_events').insert({
-      case_id: data.caseId,
-      appointment_id: data.patientId!, // Note: this should be appointment_id in real implementation
-      patient_id: data.patientId,
-      event_type: 'material_consumed',
-      event_data: { itemSku, lotNumber, timestamp: data.timestamp },
-      timestamp: data.timestamp
-    });
+    await procedureEventRepository.logEvent(
+      data.caseId,
+      data.patientId!,
+      'material_consumed',
+      { itemSku, lotNumber, timestamp: data.timestamp },
+      data.patientId
+    );
   }
 
   private async handleEndSurgery(data: MedicProcedureUpdatePayload): Promise<void> {
-    console.log(`🏁 Surgery ended for case ${data.caseId} - archiving and auditing`);
+    logger.info('Surgery ended - archiving and auditing', { caseId: data.caseId });
 
     // Complete all jobs for this case
     this.productionQueue

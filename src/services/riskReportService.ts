@@ -1,5 +1,6 @@
-import { supabase } from '@/integrations/supabase/client';
 import { RiskReport } from '@/store/useRiskReportStore';
+import { analysisReportRepository } from '@/repositories';
+import { logger } from '@/utils/logger';
 
 // Tipuri pentru filtre și paginare
 interface ReportFilters {
@@ -24,70 +25,46 @@ interface ApiResponse {
 
 class RiskReportService {
   public async fetchRiskReports(filters: ReportFilters, pagination: PaginationState): Promise<ApiResponse> {
-    try {
-      let query = supabase
-        .from('analysis_reports')
-        .select('*', { count: 'exact' });
-
-      // Aplicăm filtrele
-      if (filters.score_lt && filters.score_lt < 1) {
-        query = query.lte('risk_score', filters.score_lt);
+    const result = await analysisReportRepository.findWithFilters(
+      {
+        maxConfidenceScore: filters.score_lt || undefined,
+        requiresAction: filters.actionRequired !== null ? filters.actionRequired : undefined,
+        startDate: filters.from || undefined,
+        endDate: filters.to || undefined,
+      },
+      {
+        offset: (pagination.page - 1) * pagination.limit,
+        limit: pagination.limit,
+        orderBy: { column: 'generated_at', ascending: false },
       }
+    );
 
-      if (filters.actionRequired !== null) {
-        query = query.eq('requires_action', filters.actionRequired);
-      }
-
-      if (filters.from) {
-        query = query.gte('created_at', filters.from);
-      }
-
-      if (filters.to) {
-        query = query.lte('created_at', filters.to);
-      }
-
-      // Aplicăm paginarea
-      const from = (pagination.page - 1) * pagination.limit;
-      const to = from + pagination.limit - 1;
-      
-      query = query
-        .range(from, to)
-        .order('created_at', { ascending: false });
-
-      const { data, error, count } = await query;
-
-      if (error) {
-        console.error('Eroare la preluarea rapoartelor de risc:', error);
-        return { data: [], pagination: { total: 0, totalPages: 1 } };
-      }
-
-      // Transformăm datele din format Supabase în format RiskReport
-      const transformedData: RiskReport[] = (data || []).map(report => ({
-        id: report.id,
-        title: report.report_type || 'Raport de risc',
-        description: 'Analiză AI generată automatic',
-        riskScore: report.risk_level === 'HIGH' ? 0.8 : report.risk_level === 'MEDIUM' ? 0.5 : 0.2,
-        status: 'pending',
-        category: report.report_type || 'general',
-        timestamp: report.generated_at,
-        actionRequired: report.requires_action || false,
-        aiConfidence: report.confidence_score || 0.8,
-        recommendations: [],
-      }));
-
-      const totalPages = Math.ceil((count || 0) / pagination.limit);
-
-      return {
-        data: transformedData,
-        pagination: {
-          total: count || 0,
-          totalPages,
-        },
-      };
-    } catch (error) {
-      console.error('Eroare neașteptată la preluarea rapoartelor de risc:', error);
+    if (!result.success) {
+      logger.error('Error fetching risk reports', { error: result.error });
       return { data: [], pagination: { total: 0, totalPages: 1 } };
     }
+
+    // Transformăm datele din format Supabase în format RiskReport
+    const transformedData: RiskReport[] = result.data.data.map(report => ({
+      id: report.id,
+      title: report.report_type || 'Raport de risc',
+      description: 'Analiză AI generată automatic',
+      riskScore: report.risk_level === 'HIGH' ? 0.8 : report.risk_level === 'MEDIUM' ? 0.5 : 0.2,
+      status: 'pending' as const,
+      category: report.report_type || 'general',
+      timestamp: report.generated_at || new Date().toISOString(),
+      actionRequired: report.requires_action || false,
+      aiConfidence: report.confidence_score || 0.8,
+      recommendations: [],
+    }));
+
+    return {
+      data: transformedData,
+      pagination: {
+        total: result.data.total,
+        totalPages: result.data.totalPages,
+      },
+    };
   }
 }
 
